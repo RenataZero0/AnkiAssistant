@@ -343,9 +343,9 @@ Anki 的 IP 留空（默认就是 `127.0.0.1:8765`）。所有请求都会记到
 
 - 制卡页：输入 `velocity` → 连假 AI → 字段自动填好 → 预览里公式渲染成 `v⃗ = Δs⃗/Δt`
 - 保存（假服务）：`createDeck` → `modelNames` → `addNote`（字段与格式一致）→ `sync`
-- **保存（真实 Anki，走 Wi-Fi 局域网）**：`测试连接` 返回 `AnkiConnect v6，共 4 个牌组`；
-  保存后卡片确实出现在目标牌组，笔记类型「专业术语卡」自动创建，
-  `sync()` 成功（App 显示「已保存并同步到 AnkiWeb 云端 ✓」）
+- **保存（内置引擎，OPPO Pad 3 / arm64 与 MuMu x86_64 都实测）**：`ENGINE SELFTEST PASS`；
+  建收藏库、建牌组、建「专业术语卡」笔记类型、写笔记全部成功，
+  设备上的 `collection.anki2` 用 SQLite 核对无误
 - 浏览：牌组列表、`deck:*` 查询、笔记列表（标题/释义/标签）、卡片详情（正反面 + MathJax）都正常
 - 手机竖屏底栏 / 平板横屏左栏、转屏重排；崩溃捕获已装，实测无崩溃记录
 - 截图见 `preview/`（`tablet-*.png` / `phone-*.png`）
@@ -357,6 +357,5 @@ Anki 的 IP 留空（默认就是 `127.0.0.1:8765`）。所有请求都会记到
 - **AI 输出仍需人工过一眼**：免费档模型偶尔会把音标写偏（例如 probability 给成 /prɒˈbæbəl/），
   DeepSeek 的准确度明显更高
 - **MathJax 字体**：已内置 23 个 `woff`，离线可用；若公式显示为方块，说明字体路径被改动了（见踩坑第 1 条）
-- 卡片是**存到电脑上的 Anki**再由它同步云端；电脑关机/Anki 没开时只能先存草稿
-- AnkiConnect 默认没有 API Key（`apiKey: null`），同一 Wi-Fi 下知道 IP 的人都能操作你的 Anki；
-  介意的话在插件设置里加 `apiKey` 并在 App 里填同样的值
+- 内置引擎的收藏库在应用私有目录（其它应用读不到）；AnkiWeb 的登录凭证 hkey 存在应用私有 SharedPreferences 里，
+  密码不落盘
