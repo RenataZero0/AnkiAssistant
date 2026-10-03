@@ -32,7 +32,16 @@ public class Store {
 
     // ------------------------------------------------------------------ 设置
 
-    public String ankiHost() { return sp.getString("ankiHost", ""); }
+    /**
+     * 电脑（AnkiConnect）的局域网 IP —— **内置默认值**：新设备装完就是它，不用再手输。
+     * 换了网络、路由器分了别的 IP 时，在「设置 → Anki 连接」里改一下即可（会存进本机）。
+     */
+    public static final String DEFAULT_ANKI_HOST = "192.168.71.112";
+
+    public String ankiHost() {
+        String h = sp.getString("ankiHost", "");
+        return (h == null || h.trim().length() == 0) ? DEFAULT_ANKI_HOST : h.trim();
+    }
     public void setAnkiHost(String v) { put("ankiHost", v); }
 
     public int ankiPort() {
@@ -50,9 +59,21 @@ public class Store {
     /** 当前服务商的 API Key */
     public String aiApiKey() { return aiApiKeyFor(aiProvider()); }
 
-    /** 指定服务商的 API Key —— 每个服务商各存一把，切换时自动带出，不用重复粘贴 */
+    /**
+     * 指定服务商的 API Key。
+     * 优先用本机存下的（设置里手填/粘贴过）；没存过就用 {@link Secret} 里内置的密文 Key
+     * —— 所以新设备装完直接能用，不用手输；发现异常在设置里换一把即可（手填的优先）。
+     */
     public String aiApiKeyFor(String provider) {
-        return sp.getString("aiKey_" + provider, "");
+        String v = sp.getString("aiKey_" + provider, "");
+        if (v != null && v.trim().length() > 0) return v.trim();
+        return Secret.defaultKey(provider);
+    }
+
+    /** 本机是否存过自己的 Key（内置 Key 不算） */
+    public boolean hasOwnApiKey(String provider) {
+        String v = sp.getString("aiKey_" + provider, "");
+        return v != null && v.trim().length() > 0;
     }
 
     public void setAiApiKey(String v) { setAiApiKeyFor(aiProvider(), v); }

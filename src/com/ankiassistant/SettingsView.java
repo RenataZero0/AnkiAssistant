@@ -188,7 +188,7 @@ public class SettingsView extends LinearLayout {
         ai.addView(label("服务商"));
         ai.addView(providerBtn);
 
-        aiKeyInput = input("API Key（Bearer）", true);
+        aiKeyInput = input("留空则用内置 Key", true);
         modelInput = input("模型名", false);
         urlInput = input("接口地址", false);
         addTo(ai, "API Key", aiKeyInput);
@@ -351,8 +351,8 @@ public class SettingsView extends LinearLayout {
         portInput.setText(String.valueOf(store.ankiPort()));
         ankiKeyInput.setText(store.ankiApiKey());
         aiKeyInput.setText(store.aiApiKey());
-        modelInput.setText(store.aiModel());
-        urlInput.setText(store.aiBaseUrl());
+        modelInput.setText(store.aiModelEffective());
+        urlInput.setText(store.aiBaseUrlEffective());
         deckInput.setText(store.defaultDeck());
         tagInput.setText(store.defaultTags());
         subjectInput.setText(store.subject());
