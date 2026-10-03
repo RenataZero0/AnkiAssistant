@@ -222,6 +222,7 @@ public class CreateView extends LinearLayout {
                 pushConfig();
                 pushTemplates();
                 pushMeta();
+                pushCardLabels();
                 pushWord(wordInput.getText().toString());
                 checkMathJax();
                 if (store.introShown()) {
@@ -379,6 +380,7 @@ public class CreateView extends LinearLayout {
     public void refreshConfig() {
         refreshWordLabel();
         pushConfig();
+        pushCardLabels();
         pushTemplates();
         // 不同 config 有各自的默认值：换 config 后牌组/标签也跟着换
         CardConfig cfg = store.activeConfig();
@@ -423,6 +425,20 @@ public class CreateView extends LinearLayout {
         } catch (Exception e) {
             return true;   // 查不到就不拦着
         }
+    }
+
+
+    /** 预览里的两个标签：正面用当前格式的第一个字段名，背面不再叫"背面" */
+    private void pushCardLabels() {
+        String front = "词";
+        try {
+            CardConfig cfg = store.activeConfig();
+            if (cfg != null && cfg.fields != null && cfg.fields.size() > 0
+                    && cfg.fields.get(0).name != null && cfg.fields.get(0).name.length() > 0) {
+                front = cfg.fields.get(0).name;
+            }
+        } catch (Exception ignored) { }
+        js("setCardLabels(" + JSONObject.quote(front) + "," + JSONObject.quote("其余字段") + ")");
     }
 
     private void pushWord(String word) {
