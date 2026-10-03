@@ -944,27 +944,6 @@ public class SettingsView extends LinearLayout {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Ui.CARD);
 
-        LinearLayout head = new LinearLayout(getContext());
-        head.setOrientation(LinearLayout.VERTICAL);
-        head.setBackground(Ui.roundTop(Ui.ACCENT_SOFT, 20));
-        head.setPadding(Ui.dp(18), Ui.dp(14), Ui.dp(18), Ui.dp(12));
-
-        TextView title = new TextView(getContext());
-        title.setText("发现新版本 " + rel.tag);
-        title.setTextSize(18);
-        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        title.setTextColor(Ui.INK);
-        head.addView(title);
-
-        TextView sub = new TextView(getContext());
-        sub.setText("当前版本 " + Version.VERSION_TAG
-                + (rel.apkSize > 0 ? "　·　安装包 " + Math.max(1, rel.apkSize / 1024 / 1024) + " MB" : "")
-                + (rel.name != null && rel.name.length() > 0 ? "　·　" + rel.name : ""));
-        sub.setTextSize(12);
-        sub.setTextColor(Ui.SUB);
-        sub.setPadding(0, Ui.dp(4), 0, 0);
-        head.addView(sub);
-        root.addView(head);
 
         final View notesView;
         final android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
@@ -994,6 +973,10 @@ public class SettingsView extends LinearLayout {
         }
 
         new DialogUi.Builder(act)
+                .title("发现新版本 " + rel.tag)
+                .message("当前版本 " + Version.VERSION_TAG
+                        + (rel.apkSize > 0 ? "　·　安装包 " + Math.max(1, rel.apkSize / 1024 / 1024) + " MB" : "")
+                        + (rel.name != null && rel.name.length() > 0 ? "　·　" + rel.name : ""))
                 .content(root)
                 .wide()
                 .negative("稍后", null)

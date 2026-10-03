@@ -496,8 +496,9 @@ public class MainActivity extends Activity {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        buildUi();
-        show(current);
+        // 自己 buildUi 会把新视图接到旧视图上（平板竖屏→横屏后出现"侧栏 + 手机顶栏"共存）。
+        // 交给框架重建一次最稳。
+        recreate();
     }
 
     /** 状态栏/导航栏配色（浅色背景 + 深色图标） */

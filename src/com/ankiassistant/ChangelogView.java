@@ -77,28 +77,6 @@ public class ChangelogView {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackground(Ui.round(Ui.CARD, 20));
 
-        // ---- 头部：当前版本 ----
-        LinearLayout head = new LinearLayout(act);
-        head.setOrientation(LinearLayout.VERTICAL);
-        head.setBackgroundColor(Ui.CARD);
-        head.setPadding(Ui.dp(20), Ui.dp(18), Ui.dp(20), Ui.dp(6));
-
-        TextView title = new TextView(act);
-        title.setText("更新内容");
-        title.setTextSize(18);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setTextColor(Ui.INK);
-        head.addView(title);
-
-        TextView sub = new TextView(act);
-        String src = Changelog.sourceLabel(act);
-        if (fetchError != null && fetchError.length() > 0) src += "　·　在线更新失败：" + fetchError;
-        sub.setText("当前版本 " + Version.VERSION_TAG + "　·　" + src);
-        sub.setTextSize(12);
-        sub.setTextColor(Ui.SUB);
-        sub.setPadding(0, Ui.dp(4), 0, 0);
-        head.addView(sub);
-        root.addView(head);
 
         // ---- 版本标签 ----
         final List<String> versions = versions(md);
@@ -112,7 +90,7 @@ public class ChangelogView {
         if (versions.size() > 0) {
             HorizontalScrollView chipsBar = new HorizontalScrollView(act);
             chipsBar.setHorizontalScrollBarEnabled(false);
-            chipsBar.setBackgroundColor(Ui.BG);
+            chipsBar.setBackgroundColor(Ui.CARD);
             final LinearLayout chipRow = new LinearLayout(act);
             chipRow.setOrientation(LinearLayout.HORIZONTAL);
             chipRow.setPadding(Ui.dp(12), Ui.dp(8), Ui.dp(12), Ui.dp(8));
@@ -200,13 +178,14 @@ public class ChangelogView {
         root.addView(footer, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        final Dialog[] holder = new Dialog[1];
-        close.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                if (holder[0] != null) holder[0].dismiss();
-            }
-        });
-        Dialog made = new DialogUi.Builder(act).content(root).wide().show();
+        Dialog made = new DialogUi.Builder(act)
+                .title("更新内容")
+                .message("当前版本 " + Version.VERSION_TAG + "　·　" + Changelog.sourceLabel(act)
+                        + (fetchError != null && fetchError.length() > 0 ? "　·　在线更新失败：" + fetchError : ""))
+                .content(root)
+                .wide()
+                .negative("关闭", null)
+                .show();
         holder[0] = made;
         Window w = made.getWindow();
         if (w != null) {
