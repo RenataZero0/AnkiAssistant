@@ -87,7 +87,7 @@ public class Avatar {
     /** 写入缓存；统一在这里做圆形遮罩，返回"圆的那张"给界面直接使用 */
     private static Bitmap save(Context c, String email, String style, Bitmap b) {
         if (b == null) return null;
-        Bitmap round = circular(b);
+        Bitmap round = rounded(b);
         try {
             File f = cacheFile(c, email, style);
             FileOutputStream out = new FileOutputStream(f);
@@ -97,14 +97,16 @@ public class Avatar {
         return round;
     }
 
-    /** 把方形头像裁成圆形（透明背景的四角） */
-    public static Bitmap circular(Bitmap src) {
+    /** 圆角半径占边长的比例（各平台统一用这一个） */
+    private static final float CORNER = 0.30f;
+
+    /** 把方形头像裁成圆角方形（四角透明） */
+    public static Bitmap rounded(Bitmap src) {
         if (src == null) return null;
         int size = Math.min(src.getWidth(), src.getHeight());
         Bitmap out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas cv = new Canvas(out);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        // 用着色器把原图画进圆里，边缘自带抗锯齿
         android.graphics.BitmapShader shader = new android.graphics.BitmapShader(
                 src, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP);
         android.graphics.Matrix m = new android.graphics.Matrix();
@@ -112,10 +114,14 @@ public class Avatar {
         m.postScale(k, k);
         shader.setLocalMatrix(m);
         p.setShader(shader);
-        cv.drawCircle(size / 2f, size / 2f, size / 2f, p);
+        float r = size * CORNER;
+        cv.drawRoundRect(new android.graphics.RectF(0, 0, size, size), r, r, p);
         if (src != out) src.recycle();
         return out;
     }
+
+    /** 兼容旧调用 */
+    public static Bitmap circular(Bitmap src) { return rounded(src); }
 
     /** 清掉某个邮箱所有风格缓存（换头像时用） */
     public static void clear(Context c, String email) {
@@ -272,7 +278,8 @@ public class Avatar {
         Canvas cv = new Canvas(b);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setColor(Ui.ACCENT);
-        cv.drawCircle(s / 2f, s / 2f, s / 2f, p);
+        float r = s * CORNER;
+        cv.drawRoundRect(new android.graphics.RectF(0, 0, s, s), r, r, p);
 
         String ch = "A";
         if (email != null && email.trim().length() > 0) {
