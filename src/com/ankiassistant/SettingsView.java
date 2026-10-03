@@ -502,17 +502,31 @@ public class SettingsView extends LinearLayout {
         head.addView(sub);
         root.addView(head);
 
+        final View notesView;
+        final android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
         if (notes.length() == 0) {
             TextView empty = new TextView(getContext());
             empty.setText("这个版本没有写更新说明。");
             empty.setTextSize(13.5f);
             empty.setTextColor(Ui.TEXT_BODY);
             empty.setPadding(Ui.dp(18), Ui.dp(14), Ui.dp(18), Ui.dp(14));
-            root.addView(empty);
+            root.addView(empty, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            notesView = empty;
         } else {
-            root.addView(ChangelogView.markdownScroll(getContext(), notes, 18),
-                    new LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+            notesView = ChangelogView.markdownScroll(getContext(), notes, 18);
+            // 先按内容量出需要多高：短说明就贴着按钮（不留空白），太长则封顶在屏幕 62%，内部滚动。
+            // 注意必须**显示前**量好并写死高度 —— 显示后再调，长内容会把窗口先撑到屏幕外。
+            int avail = (int) (dm.widthPixels * 0.94) - Ui.dp(36);
+            notesView.measure(
+                    View.MeasureSpec.makeMeasureSpec(Math.max(avail, Ui.dp(200)),
+                            View.MeasureSpec.AT_MOST),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+            int contentH = notesView.getMeasuredHeight();
+            int maxH = (int) (dm.heightPixels * 0.62);
+            int finalH = Math.max(Ui.dp(60), Math.min(contentH > 0 ? contentH : maxH, maxH));
+            root.addView(notesView, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, finalH));
         }
 
         final AlertDialog dlg = new AlertDialog.Builder(act)
@@ -537,8 +551,9 @@ public class SettingsView extends LinearLayout {
         dlg.show();
         android.view.Window w = dlg.getWindow();
         if (w != null) {
-            android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
-            w.setLayout((int) (dm.widthPixels * 0.94), (int) (dm.heightPixels * 0.84));
+            // 高度交给内容决定（说明区的最终高度已在显示前按内容量好）
+            w.setLayout((int) (getResources().getDisplayMetrics().widthPixels * 0.94),
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
             w.setBackgroundDrawable(Ui.round(Ui.WHITE, 14));
         }
     }

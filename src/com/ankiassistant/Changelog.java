@@ -109,9 +109,21 @@ public class Changelog {
         return m.find() ? m.group(1) : "";
     }
 
-    /** 能读到的日志版本与当前运行版本不一致时给个提醒（构建时忘了改版本号） */
+    /** **只看打包进 APK 的那份**（不含从 GitHub 拉来的缓存） */
+    public static String bundled(Context c) {
+        try {
+            return read(c.getAssets().open("CHANGELOG.md"));
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /**
+     * 打包进 APK 的日志版本与当前运行版本不一致时给个提醒（构建时忘了改版本号）。
+     * 注意必须看 **assets 里那份**，不能用 local()（那是缓存优先）—— 否则日志一更新就会误报。
+     */
     public static boolean bundledNewer(Context c) {
-        String latest = latestVersion(local(c));
+        String latest = latestVersion(bundled(c));
         return latest.length() > 0 && !latest.equals(Version.VERSION_NUMBER);
     }
 
