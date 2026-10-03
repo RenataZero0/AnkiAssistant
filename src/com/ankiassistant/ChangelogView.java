@@ -37,8 +37,33 @@ public class ChangelogView {
 
     private ChangelogView() { }
 
+    /**
+     * 和 StudyCompanion 完全一致：先把 GitHub 上的最新日志拉下来（成功就写进缓存），
+     * 拉不到就用缓存 / APK 内置副本，并在标题下写明来源与原因。
+     */
     public static void show(final android.app.Activity act) {
-        String md = Changelog.text(act);
+        final AlertDialog busy = new AlertDialog.Builder(act)
+                .setTitle("更新内容")
+                .setMessage("正在获取最新更新日志…")
+                .setCancelable(false)
+                .create();
+        busy.show();
+        Th.bg(new Runnable() {
+            @Override public void run() {
+                final String[] err = new String[1];
+                final boolean ok = Changelog.fetch(act, err);
+                Th.ui(new Runnable() {
+                    @Override public void run() {
+                        try { busy.dismiss(); } catch (Exception ignored) { }
+                        showNow(act, ok ? "" : (err[0] == null ? "拉取失败" : err[0]));
+                    }
+                });
+            }
+        });
+    }
+
+    private static void showNow(final android.app.Activity act, String fetchError) {
+        String md = Changelog.local(act);
         if (md == null || md.trim().length() == 0) {
             new AlertDialog.Builder(act)
                     .setTitle("更新日志")
@@ -66,7 +91,9 @@ public class ChangelogView {
         head.addView(title);
 
         TextView sub = new TextView(act);
-        sub.setText("当前版本 " + Version.VERSION_TAG);
+        String src = Changelog.sourceLabel(act);
+        if (fetchError != null && fetchError.length() > 0) src += "　·　在线更新失败：" + fetchError;
+        sub.setText("当前版本 " + Version.VERSION_TAG + "　·　" + src);
         sub.setTextSize(12);
         sub.setTextColor(Ui.SUB);
         sub.setPadding(0, Ui.dp(4), 0, 0);
