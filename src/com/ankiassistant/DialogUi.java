@@ -79,7 +79,7 @@ public class DialogUi {
 
             LinearLayout root = new LinearLayout(act);
             root.setOrientation(LinearLayout.VERTICAL);
-            root.setBackground(Ui.round(Ui.WHITE, 20));
+            root.setBackground(Ui.round(Ui.CARD, 20));
             root.setPadding(Ui.dp(22), Ui.dp(20), Ui.dp(22), Ui.dp(12));
             root.setElevation(Ui.dp(10));
 
@@ -242,7 +242,7 @@ public class DialogUi {
     /** 简易输入行（弹窗里用），带统一样式 */
     public static FrameLayout inputWrap(Activity act, View input) {
         FrameLayout wrap = new FrameLayout(act);
-        wrap.setBackground(Ui.roundStroke(0xFFF7F9FC, Ui.LINE, 12));
+        wrap.setBackground(Ui.roundStroke(Ui.PANEL, Ui.LINE, 12));
         wrap.setPadding(Ui.dp(12), Ui.dp(2), Ui.dp(12), Ui.dp(2));
         wrap.addView(input, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));

@@ -5,8 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Anki 助手 · 编辑器</title>
 <style>
+  /* ---------- 皮肤变量：Java 侧 setTheme() 会覆盖这些值 ---------- */
+  :root {
+    --bg: var(--bg); --card: #ffffff; --panel: var(--panel); --ink: var(--ink);
+    --body: var(--body); --sub: var(--sub); --dim: var(--dim);
+    --line: var(--line); --line2: var(--line2);
+    --accent: var(--accent); --accent-soft: var(--accent-soft); --pressed: var(--pressed);
+    --amber: var(--amber); --shadow: var(--shadow);
+  }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; padding: 0; background: #f3f5f9; color: #1b2432;
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
     font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
                  "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 16px; }
   body { padding-bottom: 14px; }
@@ -15,48 +23,48 @@
   /* 两者放进同一个 sticky 容器：以前是两个 sticky 元素用 top:48px 硬拼，
      tab 实际高度一旦不是 48px（不同机型/字号）就会错位，滚动时互相追着重排 → 抖动。
      合成一层 + 提升为合成层（translateZ）后就不抖了。 */
-  #topSticky { position: sticky; top: 0; z-index: 30; background: #f3f5f9;
+  #topSticky { position: sticky; top: 0; z-index: 30; background: var(--bg);
                -webkit-transform: translateZ(0); transform: translateZ(0);
                -webkit-backface-visibility: hidden; backface-visibility: hidden; }
   /* tab 做成完整圆角的胶囊：之前是"上方圆角 + 无下边框"，下面又不再是白底，
      看起来就像被截断了一半 */
   .tabs { display: flex; gap: 8px;
-          padding: 8px 10px 8px 10px; background: #f3f5f9; }
+          padding: 8px 10px 8px 10px; background: var(--bg); }
   .tab { flex: 1; text-align: center; padding: 10px 0; font-size: 15px; font-weight: 600;
-         color: #71809a; background: #fff; border: 1px solid #e5e9f0;
+         color: var(--sub); background: var(--card); border: 1px solid var(--line);
          border-radius: 12px; }
-  .tab.on { color: #3568e8; background: #e8effe; border-color: #c9d8f8; }
+  .tab.on { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-soft); }
 
   /* ---------- 工具栏 ---------- */
   /* 做成和 tab / 字段一样内缩的圆角浮条，而不是通栏白条，否则视觉上很突兀 */
   #toolbar { display: none; overflow-x: auto;
-             white-space: nowrap; background: #f7f9fc; border: 1px solid #e5e9f0;
+             white-space: nowrap; background: var(--panel); border: 1px solid var(--line);
              border-radius: 12px; padding: 7px 8px; margin: 0 10px 8px 10px; }
   #toolbar::-webkit-scrollbar { display: none; }
   .tb { display: inline-block; min-width: 36px; height: 34px; line-height: 34px; text-align: center;
-        padding: 0 8px; margin-right: 2px; font-size: 15px; color: #3c4a60;
+        padding: 0 8px; margin-right: 2px; font-size: 15px; color: var(--body);
         background: transparent; border: none; border-radius: 8px; vertical-align: middle; }
-  .tb:active { background: #dde7fb; }
+  .tb:active { background: var(--pressed); }
   .tb.b { font-weight: 800; } .tb.i { font-style: italic; }
   .tb.u { text-decoration: underline; } .tb.s { text-decoration: line-through; }
-  .sep { display: inline-block; width: 1px; height: 20px; background: #dbe3ee;
+  .sep { display: inline-block; width: 1px; height: 20px; background: var(--line2);
          margin: 0 7px 0 5px; vertical-align: middle; }
 
   /* 取色板 */
-  #palette { position: fixed; z-index: 40; display: none; background: #fff; border: 1px solid #e5e9f0;
-             border-radius: 10px; padding: 6px; box-shadow: 0 6px 18px rgba(27,36,50,.18); }
+  #palette { position: fixed; z-index: 40; display: none; background: var(--card); border: 1px solid var(--line);
+             border-radius: 10px; padding: 6px; box-shadow: 0 6px 18px var(--shadow); }
   .sw { display: inline-block; width: 26px; height: 26px; border-radius: 6px; margin: 3px; }
-  .sw:active { outline: 2px solid #3568e8; }
+  .sw:active { outline: 2px solid var(--accent); }
 
   /* ---------- 字段 ---------- */
   #editPane { display: block; padding: 2px 10px 4px 10px; }
-  .field { background: #fff; border: 1px solid #e5e9f0; border-radius: 12px;
+  .field { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
            margin-bottom: 9px; padding: 8px 12px 10px 12px; }
-  .field.focus { border-color: #3568e8; box-shadow: 0 0 0 2px #e8effe; }
-  .fhead { font-size: 12px; color: #71809a; letter-spacing: .6px; margin-bottom: 4px; }
+  .field.focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .fhead { font-size: 12px; color: var(--sub); letter-spacing: .6px; margin-bottom: 4px; }
   .fedit { min-height: 34px; outline: none; font-size: 16px; line-height: 1.55;
-           color: #1b2432; word-break: break-word; }
-  .fedit:empty:before { content: attr(data-ph); color: #9aa6b8; }
+           color: var(--ink); word-break: break-word; }
+  .fedit:empty:before { content: attr(data-ph); color: var(--dim); }
 /* 浏览页只读展示：没有输入框的最小高度，也没有占位符 */
 .fedit.ro { min-height: 0; }
 .fedit.ro:empty:before { content: none; }
@@ -64,43 +72,43 @@
   border-bottom: 1px solid #edf1f7; margin-bottom: 14px; }
   textarea.fedit { width: 100%; min-height: 78px; border: none; resize: vertical;
                    font-family: Consolas, Menlo, monospace; font-size: 14px; background: #f8fafc; }
-  .htmltag { float: right; font-size: 11px; color: #9aa6b8; border: 1px solid #e5e9f0;
-             border-radius: 6px; padding: 1px 7px; background: #fff; }
-  .htmltag.on { color: #3568e8; border-color: #c9d8f8; background: #e8effe; }
+  .htmltag { float: right; font-size: 11px; color: var(--dim); border: 1px solid var(--line);
+             border-radius: 6px; padding: 1px 7px; background: var(--card); }
+  .htmltag.on { color: var(--accent); border-color: var(--accent-soft); background: var(--accent-soft); }
 
   /* ---------- 预览 ---------- */
   #prevPane { display: none; padding: 2px 10px 4px 10px; }
   .pbar { display: flex; gap: 10px; margin-bottom: 12px; }
   .pbtn { flex: 1; text-align: center; padding: 11px 0; font-size: 14px; font-weight: 600;
-          background: #fff; border: 1px solid #e5e9f0; border-radius: 10px; color: #3c4a60; }
-  .pbtn:active { background: #e8effe; }
-  .pbtn.primary { background: #3568e8; color: #fff; border-color: #3568e8; }
+          background: var(--card); border: 1px solid var(--line); border-radius: 10px; color: var(--body); }
+  .pbtn:active { background: var(--accent-soft); }
+  .pbtn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 
   /* 预览用的"纸张"外壳；内层 .card 的样式来自 Java 传进来的桌面端模板 CSS，
      所以这里不重复定义 .card —— 预览出来的效果和 Anki 桌面端逐像素一致。 */
-  .sheet { background: #fff; border: 1px solid #e5e9f0; border-radius: 14px;
+  .sheet { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
            padding: 12px; margin-bottom: 10px; overflow-x: auto; }
   .sheet.answer { display: none; }
   .shown .sheet.answer { display: block; }
-  .cardlabel { font-size: 11px; color: #9aa6b8; letter-spacing: 1px; margin-bottom: 6px; }
+  .cardlabel { font-size: 11px; color: var(--dim); letter-spacing: 1px; margin-bottom: 6px; }
 
   /* cloze 与代码块在桌面端模板里没有，这里补上 */
   .card .cloze, .cloze { background: #fff3b0; color: #b45309; font-weight: 600;
                          border-radius: 3px; padding: 0 3px; }
-  .card code { background: #f3f5f9; border-radius: 4px; padding: 1px 5px; }
+  .card code { background: var(--bg); border-radius: 4px; padding: 1px 5px; }
 
   /* 预览里的空状态：没输入单词 / 没有内容时给一句人话，而不是空白卡片 */
-  .emptyhint { color: #9aa6b8; font-size: 14px; text-align: center; padding: 22px 6px; }
+  .emptyhint { color: var(--dim); font-size: 14px; text-align: center; padding: 22px 6px; }
 
   /* ---------- 编辑区底部的牌组 / 标签 / 保存（跟着字段一起滚，不固定） ---------- */
-  #metaPane { border-top: 1px solid #e5e9f0; margin-top: 14px; padding: 12px 10px 2px 10px; }
+  #metaPane { border-top: 1px solid var(--line); margin-top: 14px; padding: 12px 10px 2px 10px; }
   .mrow { display: flex; gap: 10px; }
   .mrow.baseline { align-items: flex-end; }
   .mcol { flex: 1; min-width: 0; }
-  .mlabel { font-size: 12px; color: #9aa6b8; margin-bottom: 5px; }
-  .mtxt { width: 100%; box-sizing: border-box; border: 1px solid #e5e9f0; border-radius: 10px;
-          padding: 10px 12px; font-size: 15px; color: #1e2a3a; background: #fff; outline: none; }
-  .mtxt:focus { border-color: #c9d8f8; }
+  .mlabel { font-size: 12px; color: var(--dim); margin-bottom: 5px; }
+  .mtxt { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 10px;
+          padding: 10px 12px; font-size: 15px; color: #1e2a3a; background: var(--card); outline: none; }
+  .mtxt:focus { border-color: var(--accent-soft); }
   .mrow.actions { margin-top: 12px; }
   .pbtn.small { flex: 0 0 auto; padding: 11px 14px; }
   .pbtn.big { font-size: 15px; padding: 13px 0; }
@@ -119,7 +127,7 @@
   body.readonly .tabs { display: none; }
   body.readonly #topSticky { display: none; }
 
-  #mjnote { display: none; font-size: 12px; color: #de9420; padding: 4px 12px; }
+  #mjnote { display: none; font-size: 12px; color: var(--amber); padding: 4px 12px; }
 </style>
 
 <script>
@@ -634,6 +642,22 @@ function showNoteFields(payload) {
   window.scrollTo(0, 0);
 }
 
+/* 皮肤：Java 侧在建好页面后调用，传入当前主题的取色 */
+function setTheme(t) {
+  if (!t) return;
+  var r = document.documentElement.style;
+  var map = {
+    '--bg': t.bg, '--card': t.card, '--panel': t.panel, '--ink': t.ink,
+    '--body': t.body, '--sub': t.sub, '--dim': t.dim,
+    '--line': t.line, '--line2': t.line, '--accent': t.accent,
+    '--accent-soft': t.accentSoft, '--pressed': t.accentSoft,
+    '--amber': t.amber, '--shadow': t.shadow
+  };
+  for (var k in map) {
+    if (map[k]) r.setProperty(k, map[k]);
+  }
+}
+
 /* ---------------- 工具栏 ---------------- */
 function focusedField() {
   var el = document.activeElement;
@@ -720,9 +744,9 @@ function undo(ev) { return tool(ev, 'undo'); }
 function redo(ev) { return tool(ev, 'redo'); }
 
 /* ---------------- 取色板 ---------------- */
-var COLORS = ['#1b2432', '#3568e8', '#21a366', '#de9420', '#e0533f',
-              '#7c3aed', '#0891b2', '#be185d', '#9aa6b8', '#ffffff'];
-var HL = ['#fff3b0', '#d9f7e8', '#dbeafe', '#ffe4e1', '#ede9fe', '#f3f5f9'];
+var COLORS = ['var(--ink)', 'var(--accent)', '#21a366', 'var(--amber)', '#e0533f',
+              '#7c3aed', '#0891b2', '#be185d', 'var(--dim)', '#ffffff'];
+var HL = ['#fff3b0', '#d9f7e8', '#dbeafe', '#ffe4e1', '#ede9fe', 'var(--bg)'];
 
 function openPalette(ev, which) {
   if (ev) { ev.preventDefault(); ev.stopPropagation(); }
@@ -731,7 +755,7 @@ function openPalette(ev, which) {
   var html = '';
   for (var i = 0; i < list.length; i++) {
     html += '<span class="sw" style="background:' + list[i] +
-            (list[i] === '#ffffff' ? ';border:1px solid #e5e9f0' : '') +
+            (list[i] === '#ffffff' ? ';border:1px solid var(--line)' : '') +
             '" onmousedown="return pickColor(event,\'' + which + '\',\'' + list[i] + '\')"></span>';
   }
   p.innerHTML = html;

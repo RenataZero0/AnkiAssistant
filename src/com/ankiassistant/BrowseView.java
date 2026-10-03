@@ -67,7 +67,7 @@ public class BrowseView extends LinearLayout {
         // 分段控件：一条圆角灰底 + 两个等宽扁平标签（选中的是白底蓝字）
         LinearLayout seg = new LinearLayout(getContext());
         seg.setOrientation(HORIZONTAL);
-        seg.setBackground(Ui.round(0xFFEDF1F8, 11));
+        seg.setBackground(Ui.round(Ui.PANEL, 11));
         seg.setPadding(Ui.dp(4), Ui.dp(4), Ui.dp(4), Ui.dp(4));
         LinearLayout.LayoutParams segLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -124,7 +124,7 @@ public class BrowseView extends LinearLayout {
         b.setAllCaps(false);
         b.setStateListAnimator(null);
         b.setElevation(0);
-        b.setBackground(on ? Ui.round(0xFFFFFFFF, 9) : Ui.round(0x00000000, 9));
+        b.setBackground(on ? Ui.round(Ui.CARD, 9) : Ui.round(0x00000000, 9));
         b.setPadding(0, 0, 0, 0);
     }
 
@@ -420,7 +420,7 @@ public class BrowseView extends LinearLayout {
 
         detailWeb = new WebView(getContext());
         detailWeb.getSettings().setJavaScriptEnabled(true);
-        detailWeb.setBackgroundColor(0xFFFFFFFF);
+        detailWeb.setBackgroundColor(Ui.CARD);
         // 详情直接复用制卡页的编辑器页面：字段样式、字号、行距与公式渲染都跟预览一模一样。
         // 载入完成后才允许注入内容（否则 JS 还没就绪）。
         detailWeb.setWebViewClient(new WebViewClient() {

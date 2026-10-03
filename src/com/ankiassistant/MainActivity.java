@@ -66,6 +66,7 @@ public class MainActivity extends Activity {
         if (getIntent() != null && getIntent().getBooleanExtra("migrateLegacy", false)) runMigrateProbe(false);
         if (getIntent() != null && getIntent().getBooleanExtra("migrateLegacyApply", false)) runMigrateProbe(true);
         CrashHandler.install(this);
+        Theme.apply(this, store);   // 主题必须在建界面之前套用
         android.util.Log.i("AnkiAssistant", "ACTIVE config = " + store.activeConfig().name
                 + " id=" + store.activeConfig().id);
         // WebView 读不了 assets 里 1MB 以上的文件（MathJax 就超了），所以起个本机小服务器
@@ -500,7 +501,7 @@ public class MainActivity extends Activity {
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         // 顶栏不再是"纯白一片"：淡渐变 + 阴影 + 底部一条淡蓝渐变线
         GradientDrawable barBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0xFFFFFFFF, 0xFFF3F7FD});
+                new int[]{Ui.CARD, Ui.PANEL});
         topBar.setBackground(barBg);
         topBar.setElevation(Ui.dp(2));
         // 左右留白与各页面内容的 12dp 对齐，标题才会和下面的卡片左边缘齐平
@@ -540,14 +541,14 @@ public class MainActivity extends Activity {
         ver.setTextColor(Ui.TEXT_DIM);
         ver.setTextSize(11);
         ver.setGravity(android.view.Gravity.CENTER);
-        ver.setBackground(Ui.round(0xFFEEF2F9, 8));
+        ver.setBackground(Ui.round(Ui.PANEL, 8));
         ver.setPadding(Ui.dp(9), Ui.dp(3), Ui.dp(9), Ui.dp(3));
         topBar.addView(ver, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         View accentLine = new View(this);
         accentLine.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{0x663568E8, 0x003568E8}));
+                new int[]{Ui.alpha(Ui.ACCENT, 0x66), Ui.alpha(Ui.ACCENT, 0x00)}));
         column.addView(accentLine, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(2)));
 
@@ -598,7 +599,7 @@ public class MainActivity extends Activity {
         r.setOrientation(LinearLayout.VERTICAL);
         // 淡色渐变底（不再是死白一整条），右上角由 accentLine 收边
         r.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{0xFFF8FAFD, 0xFFF1F5FB}));
+                new int[]{Ui.CARD, Ui.PANEL}));
         r.setPadding(Ui.dp(8), Ui.dp(16), Ui.dp(8), Ui.dp(14));
 
         // ---- 顶部：Anki 账号按钮（图标是应用标识；点开登录/注册/同步） ----
@@ -665,7 +666,7 @@ public class MainActivity extends Activity {
         });
 
         ankiDot = new View(this);
-        ankiDot.setBackground(Ui.round(0xFFB9C2D0, 5));
+        ankiDot.setBackground(Ui.round(Ui.TEXT_DIM, 5));
         LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(Ui.dp(10), Ui.dp(10));
         dlp.gravity = android.view.Gravity.CENTER_HORIZONTAL;
         dlp.bottomMargin = Ui.dp(5);
@@ -701,7 +702,7 @@ public class MainActivity extends Activity {
             LinearLayout card = new LinearLayout(this);
             card.setOrientation(LinearLayout.HORIZONTAL);
             card.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            card.setBackground(Ui.round(0xFFF6F9FE, 16));
+            card.setBackground(Ui.round(Ui.PANEL, 16));
             card.setPadding(Ui.dp(14), Ui.dp(14), Ui.dp(14), Ui.dp(14));
             TextView avatar = new TextView(this);
             avatar.setText("A");
@@ -836,6 +837,12 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** 设置页 / 其它页面的「立即同步」入口（未登录会先弹登录） */
+    public void syncNow() { onLampClick(); }
+
+    /** 换皮肤后重建界面（主题是在建视图时读的，所以必须重建） */
+    public void onThemeChanged() { recreate(); }
+
     /** 已有 hkey 时点灯同步；没有就弹登录 */
     private void onLampClick() {
         if (store.ankiWebHkey().length() == 0) {
@@ -917,14 +924,14 @@ public class MainActivity extends Activity {
         }
         if (ankiDot == null) return;
         if (!loggedIn) {
-            setSyncLamp(0xFFB9C2D0, "未登录");
+            setSyncLamp(Ui.TEXT_DIM, "未登录");
         } else if (last <= 0) {
-            setSyncLamp(0xFFF5A623, "待同步");
+            setSyncLamp(Ui.AMBER, "待同步");
         } else {
             long min = (System.currentTimeMillis() - last) / 60000L;
             String when = min < 1 ? "刚刚" : (min < 60 ? (min + " 分钟前")
                     : (min / 60 + " 小时前"));
-            setSyncLamp(0xFF22A06B, when);
+            setSyncLamp(Ui.GREEN, when);
         }
     }
 
@@ -932,7 +939,7 @@ public class MainActivity extends Activity {
         if (ankiDot != null) ankiDot.setBackground(Ui.round(color, 5));
         if (ankiLampText != null) {
             ankiLampText.setText(label);
-            ankiLampText.setTextColor(color == 0xFF22A06B ? color : Ui.TEXT_DIM);
+            ankiLampText.setTextColor(color == Ui.GREEN ? color : Ui.TEXT_DIM);
         }
     }
 
@@ -940,7 +947,7 @@ public class MainActivity extends Activity {
         if (ankiDot != null) ankiDot.setBackground(Ui.round(color, 5));
         if (ankiLampText != null) {
             ankiLampText.setText(label);
-            ankiLampText.setTextColor(color == 0xFF22A06B ? color : Ui.TEXT_DIM);
+            ankiLampText.setTextColor(color == Ui.GREEN ? color : Ui.TEXT_DIM);
         }
     }
 
@@ -948,7 +955,7 @@ public class MainActivity extends Activity {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setPadding(Ui.dp(4), Ui.dp(4), Ui.dp(4), Ui.dp(4));
-        bar.setBackground(Ui.roundStroke(Ui.WHITE, Ui.LINE, 0));
+        bar.setBackground(Ui.roundStroke(Ui.CARD, Ui.LINE, 0));
         String[] labels = {"制卡", "浏览", "设置"};
         int[] icons = {IconDrawable.ADD, IconDrawable.CARDS, IconDrawable.SLIDERS};
         for (int i = 0; i < 3; i++) {

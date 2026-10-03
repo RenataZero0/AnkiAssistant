@@ -76,7 +76,7 @@ public class IconDrawable extends Drawable {
                     p.setStyle(Paint.Style.FILL);
                     canvas.drawCircle(kx[i], ys[i], 3.1f, p);
                     // 中空：用背景色盖一层，再描边
-                    p.setColor(0xFFFFFFFF);
+                    p.setColor(color);
                     canvas.drawCircle(kx[i], ys[i], 1.6f, p);
                     p.setColor(color);
                     p.setStyle(Paint.Style.STROKE);

@@ -14,25 +14,33 @@ import android.widget.TextView;
  */
 public class Ui {
 
-    public static final int BG          = 0xFFF3F5F9;
-    public static final int CARD        = 0xFFFFFFFF;
-    public static final int INK         = 0xFF1B2432;
-    public static final int SUB         = 0xFF71809A;
-    public static final int LINE        = 0xFFE5E9F0;
-    public static final int ACCENT      = 0xFF3568E8;
-    public static final int ACCENT_DARK = 0xFF2B52BC;
-    public static final int ACCENT_SOFT = 0xFFE8EFFE;
-    public static final int GREEN       = 0xFF21A366;
-    public static final int GREEN_SOFT  = 0xFFE4F5EC;
-    public static final int AMBER       = 0xFFDE9420;
-    public static final int AMBER_SOFT  = 0xFFFDF2DF;
-    public static final int RED         = 0xFFE0533F;
-    public static final int RED_SOFT    = 0xFFFBE9E5;
-    public static final int TEXT_BODY   = 0xFF3C4A60;
-    public static final int TEXT_DIM    = 0xFF9AA6B8;
-    public static final int WHITE       = 0xFFFFFFFF;
+    public static int BG = 0xFFF3F5F9;
+    public static int CARD = 0xFFFFFFFF;
+    public static int INK = 0xFF1B2432;
+    public static int SUB = 0xFF71809A;
+    public static int LINE = 0xFFE5E9F0;
+    public static int ACCENT = 0xFF3568E8;
+    public static int ACCENT_DARK = 0xFF2B52BC;
+    public static int ACCENT_SOFT = 0xFFE8EFFE;
+    public static int GREEN = 0xFF21A366;
+    public static int GREEN_SOFT = 0xFFE4F5EC;
+    public static int AMBER = 0xFFDE9420;
+    public static int AMBER_SOFT = 0xFFFDF2DF;
+    public static int RED = 0xFFE0533F;
+    public static int RED_SOFT = 0xFFFBE9E5;
+    public static int TEXT_BODY = 0xFF3C4A60;
+    public static int TEXT_DIM = 0xFF9AA6B8;
+    public static boolean DARK = false;
+    /** 次级面板色（索引栏、徽标、输入框底等） */
+    public static int PANEL = 0xFFF6F9FE;
+    public static int WHITE = 0xFFFFFFFF;
 
     /** 压暗（用于按下态） */
+    /** 给颜色加透明度（0..255） */
+    public static int alpha(int color, int a) {
+        return (color & 0x00FFFFFF) | ((a & 0xFF) << 24);
+    }
+
     public static int dim(int color, float f) {
         int a = (color >>> 24) & 0xFF;
         int r = (color >>> 16) & 0xFF;
@@ -100,18 +108,28 @@ public class Ui {
     /** 主按钮（蓝底白字） */
     public static void primary(Button b) { btn(b, ACCENT, WHITE); }
 
-    /** 次按钮（白底蓝字 + 描边） */
+    /** 次按钮（面板底 + 主文字色 + 描边，跟随皮肤） */
     public static void secondary(Button b) {
-        btn(b, WHITE, ACCENT);
-        b.setBackground(pressStroke(WHITE, 0xFFC9D8F8, 10));
+        btn(b, PANEL, INK);
+        b.setBackground(pressStroke(PANEL, LINE, 10));
     }
 
     /** 危险按钮 */
     public static void danger(Button b) { btn(b, RED_SOFT, RED); }
 
     /** 输入框统一样式：浅底 + 圆角描边（比默认下划线干净） */
+    /** 复选框：勾选态用主色，未勾选用线条色（深色皮肤下也能看清） */
+    public static void check(android.widget.CheckBox c) {
+        int[][] states = new int[][]{
+                new int[]{android.R.attr.state_checked},
+                new int[]{-android.R.attr.state_checked}
+        };
+        c.setButtonTintList(new android.content.res.ColorStateList(states,
+                new int[]{ACCENT, SUB}));
+    }
+
     public static void field(EditText e) {
-        e.setBackground(pressStroke(0xFFF8FAFC, LINE, 10));
+        e.setBackground(pressStroke(PANEL, LINE, 10));
         e.setPadding(dp(10), dp(8), dp(10), dp(8));
         e.setTextColor(INK);
     }

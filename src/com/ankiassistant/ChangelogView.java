@@ -75,7 +75,7 @@ public class ChangelogView {
 
         LinearLayout root = new LinearLayout(act);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackground(Ui.round(Ui.WHITE, 20));
+        root.setBackground(Ui.round(Ui.CARD, 20));
 
         // ---- 头部：当前版本 ----
         LinearLayout head = new LinearLayout(act);
@@ -107,7 +107,7 @@ public class ChangelogView {
         final int[] activeIdx = new int[]{0};
         final boolean[] programmatic = new boolean[]{false};
         final ScrollView scroll = new ScrollView(act);
-        scroll.setBackgroundColor(Ui.WHITE);
+        scroll.setBackgroundColor(Ui.CARD);
 
         if (versions.size() > 0) {
             HorizontalScrollView chipsBar = new HorizontalScrollView(act);
@@ -194,7 +194,7 @@ public class ChangelogView {
         });
         LinearLayout footer = new LinearLayout(act);
         footer.setPadding(Ui.dp(18), Ui.dp(10), Ui.dp(18), Ui.dp(14));
-        footer.setBackgroundColor(Ui.WHITE);
+        footer.setBackgroundColor(Ui.CARD);
         footer.addView(close, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         root.addView(footer, new LinearLayout.LayoutParams(
@@ -225,7 +225,7 @@ public class ChangelogView {
      */
     public static View markdownScroll(Context c, String md, int paddingDp) {
         ScrollView sv = new ScrollView(c);
-        sv.setBackgroundColor(Ui.WHITE);
+        sv.setBackgroundColor(Ui.CARD);
         LinearLayout box = new LinearLayout(c);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(Ui.dp(paddingDp), Ui.dp(4), Ui.dp(paddingDp), Ui.dp(12));
@@ -400,7 +400,7 @@ public class ChangelogView {
         t.setTextSize(12f);
         t.setTypeface(Typeface.MONOSPACE);
         t.setTextColor(Ui.TEXT_BODY);
-        t.setBackground(Ui.round(0xFFF4F6FA, 4));
+        t.setBackground(Ui.round(Ui.PANEL, 4));
         t.setPadding(Ui.dp(10), Ui.dp(2), Ui.dp(10), Ui.dp(2));
         return t;
     }
@@ -421,7 +421,7 @@ public class ChangelogView {
 
     /** 引用块：淡灰底 + 左侧留白，视觉上和应用其它地方一致 */
     private static android.graphics.drawable.Drawable leftBar(Context c) {
-        return Ui.round(0xFFF4F6FA, 8);
+        return Ui.round(Ui.PANEL, 8);
     }
 
     // ------------------------------------------------------------ 行内格式

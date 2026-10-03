@@ -39,6 +39,33 @@ public class Store {
     public boolean useEngine() { return sp.getBoolean("useEngine", true); }
     public void setUseEngine(boolean v) { sp.edit().putBoolean("useEngine", v).apply(); }
 
+
+    // ------------------------------------------------------------ 外观 / 同步 / 制卡习惯
+
+    /** 皮肤 id */
+    public String theme() { return sp.getString("theme", "blue"); }
+    public void setTheme(String id) { put("theme", id == null ? "blue" : id); }
+
+    /** 保存卡片后自动同步一次 */
+    public boolean autoSyncAfterSave() { return sp.getBoolean("autoSyncAfterSave", false); }
+    public void setAutoSyncAfterSave(boolean v) { sp.edit().putBoolean("autoSyncAfterSave", v).apply(); }
+
+    /** 只在 Wi-Fi 下自动同步 */
+    public boolean syncWifiOnly() { return sp.getBoolean("syncWifiOnly", true); }
+    public void setSyncWifiOnly(boolean v) { sp.edit().putBoolean("syncWifiOnly", v).apply(); }
+
+    /** 同步时包含媒体文件 */
+    public boolean syncMedia() { return sp.getBoolean("syncMediaOn", true); }
+    public void setSyncMedia(boolean v) { sp.edit().putBoolean("syncMediaOn", v).apply(); }
+
+    /** 保存成功后清空输入 */
+    public boolean clearAfterSave() { return sp.getBoolean("clearAfterSave", true); }
+    public void setClearAfterSave(boolean v) { sp.edit().putBoolean("clearAfterSave", v).apply(); }
+
+    /** AI 填充完成后自动切到预览 */
+    public boolean previewAfterFill() { return sp.getBoolean("previewAfterFill", false); }
+    public void setPreviewAfterFill(boolean v) { sp.edit().putBoolean("previewAfterFill", v).apply(); }
+
     // ------------------------------------------------------------ 输出格式 config
 
     /** 所有 config（永远包含内置默认那条） */

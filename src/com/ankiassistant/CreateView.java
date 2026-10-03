@@ -217,6 +217,7 @@ public class CreateView extends LinearLayout {
             @Override
             public void onPageFinished(WebView view, String url) {
                 editorReady = true;
+                pushTheme();
                 pushConfig();
                 pushTemplates();
                 pushMeta();
@@ -240,7 +241,7 @@ public class CreateView extends LinearLayout {
         // ---- AI 思考过程（只在思考型模型真的返回内容时才出现，默认折叠）----
         thinkingBox = new LinearLayout(getContext());
         thinkingBox.setOrientation(LinearLayout.VERTICAL);
-        thinkingBox.setBackground(Ui.round(0xFFF7F9FC, 10));
+        thinkingBox.setBackground(Ui.round(Ui.PANEL, 10));
         thinkingBox.setPadding(Ui.dp(12), Ui.dp(9), Ui.dp(12), Ui.dp(9));
         thinkingBox.setVisibility(View.GONE);
 
@@ -367,6 +368,44 @@ public class CreateView extends LinearLayout {
         deckValue = cfg.deckOr(store.defaultDeck());
         tagValue = cfg.tagsOr(store.defaultTags());
         pushMeta();
+    }
+
+
+    /** 把皮肤（是否深色）推给编辑区，让卡片预览与编辑区跟着换色 */
+    private void pushTheme() {
+        js("setTheme(" + Theme.byId(store.theme()).webVars() + ")");
+    }
+
+    /** 保存后是否自动同步一次（可在设置里关掉；可选只在 Wi-Fi 下） */
+    private void maybeAutoSync() {
+        if (!store.autoSyncAfterSave()) return;
+        if (store.ankiWebHkey().length() == 0) return;
+        if (store.syncWifiOnly() && !onWifi()) return;
+        Th.bg(new Runnable() {
+            @Override public void run() {
+                try {
+                    AnkiSync.Outcome out = AnkiSync.sync(getContext(), store, null, null, null);
+                    android.util.Log.i("AnkiAssistant", "自动同步：" + out.message);
+                } catch (AnkiSync.FullSyncRequired f) {
+                    android.util.Log.i("AnkiAssistant", "自动同步需要全量同步，跳过：" + f.reason);
+                } catch (Exception e) {
+                    android.util.Log.w("AnkiAssistant", "自动同步失败：" + e.getMessage());
+                }
+            }
+        });
+    }
+
+    /** 当前是否在 Wi-Fi 上 */
+    private boolean onWifi() {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager)
+                    getContext().getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
+            android.net.NetworkInfo ni = cm.getActiveNetworkInfo();
+            return ni != null && ni.isConnected()
+                    && ni.getType() == android.net.ConnectivityManager.TYPE_WIFI;
+        } catch (Exception e) {
+            return true;   // 查不到就不拦着
+        }
     }
 
     private void pushWord(String word) {
@@ -527,6 +566,7 @@ public class CreateView extends LinearLayout {
                             setThinking(reasoningF);
                             if (parsedF != null) {
                                 pushFields(CardFormat.noteFieldsFor(word, parsedF, store.activeConfig()));
+        if (store.previewAfterFill()) js("setMode('preview')");
                                 status(retriedF
                                         ? "AI 填充完成（首次输出格式不对，已自动重试成功），可以逐项修改后保存"
                                         : "AI 填充完成，可以逐项修改后保存", Ui.GREEN);
@@ -623,8 +663,13 @@ public class CreateView extends LinearLayout {
                                 @Override
                                 public void run() {
                                     js("setSaving(false)");
-                                    clearEditor();
+                                    if (store.clearAfterSave()) {
+                                        clearEditor();
+                                    } else {
+                                        js("setSaving(false)");
+                                    }
                                     status(ok, Ui.GREEN);
+                                    maybeAutoSync();
                                 }
                             });
                         } catch (final Exception e) {

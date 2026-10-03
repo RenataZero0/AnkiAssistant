@@ -75,7 +75,8 @@ public class AnkiSync {
 
         // 先跑一次普通同步：既能让后端判断要不要全量，也能拿到全量同步必须带的 serverUsn
         // （AnkiDroid 的做法：serverUsn = 上一次 syncCollection 响应里的 serverMediaUsn）
-        AnkiEngine.SyncInfo info = e.syncCollectionInfo(hkey, true);
+        boolean withMedia = store.syncMedia();
+        AnkiEngine.SyncInfo info = e.syncCollectionInfo(hkey, withMedia);
         store.setSyncEndpoint(e.endpoint());
         Integer serverUsn = info.serverUsn;
         if (!info.fullSyncNeeded) {
@@ -92,7 +93,7 @@ public class AnkiSync {
                     : "AnkiWeb 要求全量同步");
         }
         e.fullUploadOrDownload(hkey, fullMode.booleanValue(), serverUsn);
-        safeMediaSync(e, hkey);
+        if (withMedia) safeMediaSync(e, hkey);
         store.setSyncEndpoint(e.endpoint());
         store.setLastSyncAt(System.currentTimeMillis());
         return new Outcome("全量同步完成（" + (fullMode.booleanValue() ? "上传本机" : "下载云端") + "）✓",
