@@ -443,16 +443,6 @@ public class MainActivity extends Activity {
         if (requestCode == AnkiDroidClient.PERM_REQUEST) {
 
             if (rail != null) updateSyncLamp();
-        // 一次性清掉旧头像缓存：以前存的是方形，改成圆形后要重新生成
-        if (!store.avatarRoundMigrated()) {
-            store.setAvatarRoundMigrated(true);
-            try {
-                java.io.File dir = new java.io.File(getFilesDir(), "avatars");
-                java.io.File[] fs = dir.listFiles();
-                if (fs != null) for (java.io.File file : fs) file.delete();
-            } catch (Exception ignored) { }
-        }
-        loadAvatarAsync();   // 布局建好后统一加载一次（手机没有侧栏，必须放在这里）
             if (grantResults != null && grantResults.length > 0
                     && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 android.widget.Toast.makeText(this, "已授权：本机 AnkiDroid 兜底可用",
@@ -665,8 +655,6 @@ public class MainActivity extends Activity {
         accountAvatar.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
         accountAvatar.setBackground(Ui.round(0x00000000, 18));   // 头像是圆的，底下不要垫颜色
         accountAvatar.setClipToOutline(true);
-        android.graphics.drawable.GradientDrawable clip = Ui.round(Ui.ACCENT, 11);
-        accountAvatar.setBackground(clip);
         accountBtn.addView(accountAvatar, new LinearLayout.LayoutParams(Ui.dp(36), Ui.dp(36)));
         accountLabel = new TextView(this);
         accountLabel.setText("登录");
@@ -757,9 +745,9 @@ public class MainActivity extends Activity {
             final String mail = store.ankiWebUser();
             final android.widget.ImageView avatar = new android.widget.ImageView(this);
             avatar.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-            avatar.setBackground(Ui.round(0x00000000, 23));
+            avatar.setBackground(Ui.round(Ui.PANEL, 23));   // 还没加载出来时也有个可见的底
             avatar.setClipToOutline(true);
-            android.graphics.Bitmap av = Avatar.cached(this, mail, store.avatarStyle(mail));
+            android.graphics.Bitmap av = Avatar.anyCached(this, mail, store.avatarStyle(mail));
             if (av != null) avatar.setImageBitmap(av);
             avatar.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) { showAvatarPicker(); }
@@ -861,7 +849,7 @@ public class MainActivity extends Activity {
     private void loadAvatarAsync() {
         final String mail = store.ankiWebUser();
         final String style = store.avatarStyle(mail);
-        final android.graphics.Bitmap cached = Avatar.cached(this, mail, style);
+        final android.graphics.Bitmap cached = Avatar.anyCached(this, mail, style);
         // 这个方法可能从后台线程（同步成功后）调用，碰控件必须先回主线程
         Th.ui(new Runnable() {
             @Override public void run() {
@@ -885,6 +873,7 @@ public class MainActivity extends Activity {
                     @Override public void run() {
                         if (accountAvatar != null) accountAvatar.setImageBitmap(b);
                         if (topAvatar != null) topAvatar.setImageBitmap(b);
+                        updateSyncLamp();   // 旋转重建后也确保灯是点亮的
                     }
                 });
             }

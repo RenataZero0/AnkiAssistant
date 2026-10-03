@@ -66,6 +66,17 @@ public class Avatar {
     }
 
     /**
+     * 找一个能用的缓存：先看"自己上传"的那份（收藏库拉回来的也存这里），再看当前风格的。
+     * 界面要立刻显示头像时用这个，别只查当前风格。
+     */
+    public static Bitmap anyCached(Context c, String email, String style) {
+        Bitmap b = cached(c, email, "custom");
+        if (b == null && style != null && !"custom".equals(style)) b = cached(c, email, style);
+        if (b == null && !"auto".equals(style)) b = cached(c, email, "auto");
+        return b;
+    }
+
+    /**
      * 取头像：先缓存，再联网，最后本地生成。**必须在后台线程调用**。
      */
     public static Bitmap load(Context c, String email, String style) {
