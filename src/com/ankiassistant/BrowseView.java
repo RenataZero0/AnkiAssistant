@@ -474,6 +474,15 @@ public class BrowseView extends LinearLayout {
         pushNoteToWeb();
     }
 
+    /** 把当前皮肤推给详情页（与制卡页共用同一套 CSS 变量） */
+    private void pushThemeToWeb() {
+        if (detailWeb == null) return;
+        try {
+            detailWeb.evaluateJavascript(
+                    "setTheme(" + Theme.byId(store.theme()).webVars() + ")", null);
+        } catch (Exception ignored) { }
+    }
+
     /** 页面就绪后把内容推进去（没就绪就等 onPageFinished 回调） */
     private void pushNoteToWeb() {
         if (detailWeb == null || pendingNoteJson == null || !detailWebReady) return;
