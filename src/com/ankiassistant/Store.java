@@ -54,6 +54,9 @@ public class Store {
                 CardConfig c = CardConfig.fromJson(o);
                 if (c.id == null || c.id.length() == 0) continue;
                 if (isBuiltinId(c.id)) continue;   // 内置的那几个不从这里来
+                // 早期版本把改过的内置格式也存了进来（builtin=true）：那是历史遗留，丢掉，
+                // 否则格式列表里会出现旧名字、还带着「（内置）」标记，怎么也删不掉。
+                if (c.builtin) continue;
                 out.add(c);
             }
         } catch (Exception ignored) { }
