@@ -31,7 +31,7 @@ public class CardFormat {
     public static final String[] FIELDS = CardConfig.defaultConfig().fieldNames();
 
     public static final String SYSTEM =
-            "你是资深的英汉词典编辑，同时熟悉 CIE A-Level / NCUK IFY 的数学与物理术语。"
+            "你是资深的英汉词典编辑，熟悉 A Level 数学与物理的术语与符号。"
             + "你只输出一个 JSON 对象，不输出任何解释、注释或 Markdown 代码块。";
 
     /** 卡片正面模板 */

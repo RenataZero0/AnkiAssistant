@@ -170,7 +170,16 @@ public class Store {
     public void setAiBaseUrl(String v) { put("aiBaseUrl", v); }
 
     /** AI 填充时的学科背景（决定释义风格） */
-    public String subject() { return sp.getString("subject", "CIE A-Level / NCUK IFY 数学、物理术语"); }
+    public String subject() {
+        String v = sp.getString("subject", DEFAULT_SUBJECT);
+        // 老默认里带机构名，换成通用写法（只在用户没自己改过时替换）
+        if (OLD_DEFAULT_SUBJECT.equals(v)) v = DEFAULT_SUBJECT;
+        return v;
+    }
+
+    /** 学科背景默认值（通用，不带任何机构名） */
+    public static final String DEFAULT_SUBJECT = "A Level 数学与物理（纯数 / 力学 / 概率统计）";
+    private static final String OLD_DEFAULT_SUBJECT = "CIE A-Level / NCUK IFY 数学、物理术语";
     public void setSubject(String v) { put("subject", v); }
 
     public String defaultDeck() { return sp.getString("defaultDeck", DEFAULT_DECK); }
