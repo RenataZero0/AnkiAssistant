@@ -576,7 +576,7 @@ public class MainActivity extends Activity {
             // 顶栏也用真实头像（和侧栏、账号弹窗一致），没有头像时才显示字母底
             topAvatar = new android.widget.ImageView(this);
             topAvatar.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-            topAvatar.setBackground(Ui.round(Ui.ACCENT, 13));
+            topAvatar.setBackground(Ui.round(0x00000000, 13));
             topAvatar.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) { showAccountDialog(); }
             });
@@ -662,7 +662,7 @@ public class MainActivity extends Activity {
         });
         accountAvatar = new android.widget.ImageView(this);
         accountAvatar.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-        accountAvatar.setBackground(Ui.round(Ui.ACCENT, 18));
+        accountAvatar.setBackground(Ui.round(0x00000000, 18));   // 头像是圆的，底下不要垫颜色
         accountAvatar.setClipToOutline(true);
         android.graphics.drawable.GradientDrawable clip = Ui.round(Ui.ACCENT, 11);
         accountAvatar.setBackground(clip);
@@ -756,7 +756,7 @@ public class MainActivity extends Activity {
             final String mail = store.ankiWebUser();
             final android.widget.ImageView avatar = new android.widget.ImageView(this);
             avatar.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-            avatar.setBackground(Ui.round(Ui.ACCENT, 23));
+            avatar.setBackground(Ui.round(0x00000000, 23));
             avatar.setClipToOutline(true);
             android.graphics.Bitmap av = Avatar.cached(this, mail, store.avatarStyle(mail));
             if (av != null) avatar.setImageBitmap(av);
