@@ -867,12 +867,12 @@ public class MainActivity extends Activity {
         }
         Th.bg(new Runnable() {
             @Override public void run() {
-                android.graphics.Bitmap loaded = Avatar.load(MainActivity.this, mail, style);
-                if (Avatar.cached(MainActivity.this, mail, style) == null) {
-                    android.graphics.Bitmap fromCloud =
-                            Avatar.pullFromCloud(MainActivity.this, mail, style);
-                    if (fromCloud != null) loaded = fromCloud;
-                }
+                // 先看收藏库：这是"另一台设备上传的那张"，优先级高于本地缓存与 Gravatar
+                android.graphics.Bitmap fromCloud =
+                        Avatar.pullFromCloud(MainActivity.this, mail, "custom");
+                android.graphics.Bitmap loaded = (fromCloud != null)
+                        ? fromCloud
+                        : Avatar.load(MainActivity.this, mail, style);
                 if (loaded == null) return;
                 final android.graphics.Bitmap b = loaded;
                 Th.ui(new Runnable() {
@@ -1162,6 +1162,7 @@ public class MainActivity extends Activity {
                     AnkiSync.Outcome out = AnkiSync.sync(MainActivity.this, store, user, pass, null);
                     toastUi(out.message);
                     updateSyncLamp();
+                    loadAvatarAsync();   // 另一端刚上传的头像，同步完就能显示
                 } catch (final AnkiSync.FullSyncRequired f) {
                     Th.ui(new Runnable() {
                         @Override public void run() { askFullSync(user, pass, f.reason); }
@@ -1198,6 +1199,7 @@ public class MainActivity extends Activity {
                 try {
                     AnkiSync.Outcome out = AnkiSync.sync(MainActivity.this, store, user, pass, upload);
                     toastUi(out.message);
+                    loadAvatarAsync();
                 } catch (final Exception e) {
                     toastUi("全量同步失败：" + e.getMessage());
                 }
