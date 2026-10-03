@@ -213,6 +213,26 @@ public class ChangelogView {
         }
     }
 
+    // ------------------------------------------------------------ 可复用的 Markdown 视图
+
+    /**
+     * 把一段 Markdown 渲染成原生视图（可滚动）。更新日志阅读器与「发现新版本」弹窗共用这一套，
+     * 避免把 `## / - / **` 这些记号以纯文本形式丢给用户看。
+     *
+     * @param paddingDp 左右内边距
+     */
+    public static View markdownScroll(Context c, String md, int paddingDp) {
+        ScrollView sv = new ScrollView(c);
+        sv.setBackgroundColor(Ui.WHITE);
+        LinearLayout box = new LinearLayout(c);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(Ui.dp(paddingDp), Ui.dp(4), Ui.dp(paddingDp), Ui.dp(12));
+        render(c, md == null ? "" : md, box, new ArrayList<String>(), new ArrayList<View>());
+        sv.addView(box, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return sv;
+    }
+
     // ------------------------------------------------------------ 解析
 
     /** 只让选中的那个版本标签是蓝底白字，其余恢复成白底灰字 */

@@ -473,13 +473,50 @@ public class SettingsView extends LinearLayout {
 
     private void showUpdateDialog(final Updater.Release rel) {
         String notes = rel.notes == null ? "" : rel.notes.trim();
-        if (notes.length() > 1200) notes = notes.substring(0, 1200) + "…";
-        String msg = "当前版本：" + Version.VERSION_TAG + "\n最新版本：" + rel.tag
-                + (rel.apkSize > 0 ? "（" + (rel.apkSize / 1024 / 1024) + " MB）" : "")
-                + "\n\n" + notes;
-        new AlertDialog.Builder(act)
-                .setTitle("发现新版本")
-                .setMessage(msg)
+
+        // 弹窗里不再直接丢 Markdown 原文（以前和 SC 老版本一样，## / - / ** 全都露出来），
+        // 改用和「更新内容」阅读器同一套自绘 Markdown 渲染
+        LinearLayout root = new LinearLayout(getContext());
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Ui.WHITE);
+
+        LinearLayout head = new LinearLayout(getContext());
+        head.setOrientation(LinearLayout.VERTICAL);
+        head.setBackground(Ui.round(Ui.ACCENT_SOFT, 0));
+        head.setPadding(Ui.dp(18), Ui.dp(14), Ui.dp(18), Ui.dp(12));
+
+        TextView title = new TextView(getContext());
+        title.setText("发现新版本 " + rel.tag);
+        title.setTextSize(18);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        title.setTextColor(Ui.INK);
+        head.addView(title);
+
+        TextView sub = new TextView(getContext());
+        sub.setText("当前版本 " + Version.VERSION_TAG
+                + (rel.apkSize > 0 ? "　·　安装包 " + Math.max(1, rel.apkSize / 1024 / 1024) + " MB" : "")
+                + (rel.name != null && rel.name.length() > 0 ? "　·　" + rel.name : ""));
+        sub.setTextSize(12);
+        sub.setTextColor(Ui.SUB);
+        sub.setPadding(0, Ui.dp(4), 0, 0);
+        head.addView(sub);
+        root.addView(head);
+
+        if (notes.length() == 0) {
+            TextView empty = new TextView(getContext());
+            empty.setText("这个版本没有写更新说明。");
+            empty.setTextSize(13.5f);
+            empty.setTextColor(Ui.TEXT_BODY);
+            empty.setPadding(Ui.dp(18), Ui.dp(14), Ui.dp(18), Ui.dp(14));
+            root.addView(empty);
+        } else {
+            root.addView(ChangelogView.markdownScroll(getContext(), notes, 18),
+                    new LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        }
+
+        final AlertDialog dlg = new AlertDialog.Builder(act)
+                .setView(root)
                 .setPositiveButton("下载并安装", new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d, int w) { downloadAndInstall(rel); }
                 })
@@ -496,7 +533,14 @@ public class SettingsView extends LinearLayout {
                     }
                 })
                 .setNegativeButton("稍后", null)
-                .show();
+                .create();
+        dlg.show();
+        android.view.Window w = dlg.getWindow();
+        if (w != null) {
+            android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+            w.setLayout((int) (dm.widthPixels * 0.94), (int) (dm.heightPixels * 0.84));
+            w.setBackgroundDrawable(Ui.round(Ui.WHITE, 14));
+        }
     }
 
     private void downloadAndInstall(final Updater.Release rel) {
