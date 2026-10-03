@@ -186,7 +186,6 @@ public class ChangelogView {
                 .wide()
                 .negative("关闭", null)
                 .show();
-        holder[0] = made;
         Window w = made.getWindow();
         if (w != null) {
             DisplayMetrics dm = act.getResources().getDisplayMetrics();
