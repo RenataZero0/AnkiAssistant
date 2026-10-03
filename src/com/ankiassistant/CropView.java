@@ -121,10 +121,12 @@ public class CropView extends View {
         Canvas cv = new Canvas(out);
         Matrix m = new Matrix();
         float k = (float) size / side;
-        m.postScale(k, k);
-        m.postTranslate(-left * k, -top * k);
+        // 顺序很重要（post* 是按调用先后依次作用到点上）：
+        //   原图 → 缩放 → 平移到视图坐标 → 挪到裁剪框原点 → 放大到输出尺寸
         m.postScale(scale, scale);
         m.postTranslate(dx, dy);
+        m.postTranslate(-left, -top);
+        m.postScale(k, k);
         Paint p = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
         cv.drawBitmap(src, m, p);
         return out;

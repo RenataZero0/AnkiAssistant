@@ -41,6 +41,7 @@ public class MainActivity extends Activity {
     private NavItem[] barItems = new NavItem[3];
     private TextView accountLabel;
     private android.widget.ImageView accountAvatar;
+    private android.widget.ImageView topAvatar;
     private View ankiDot;
     private TextView ankiLampText;
     private boolean ankiChecking;
@@ -552,20 +553,17 @@ public class MainActivity extends Activity {
 
         // 手机布局没有侧栏，顶栏也给一个账号入口
         if (isPhone()) {
-            TextView avatar = new TextView(this);
-            avatar.setText("A");
-            avatar.setTextColor(Ui.WHITE);
-            avatar.setTextSize(13);
-            avatar.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            avatar.setGravity(android.view.Gravity.CENTER);
-            avatar.setBackground(Ui.round(Ui.ACCENT, 9));
-            avatar.setOnClickListener(new View.OnClickListener() {
+            // 顶栏也用真实头像（和侧栏、账号弹窗一致），没有头像时才显示字母底
+            topAvatar = new android.widget.ImageView(this);
+            topAvatar.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            topAvatar.setBackground(Ui.round(Ui.ACCENT, 9));
+            topAvatar.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) { showAccountDialog(); }
             });
             LinearLayout.LayoutParams avlp = new LinearLayout.LayoutParams(Ui.dp(26), Ui.dp(26));
             avlp.rightMargin = Ui.dp(10);
             avlp.gravity = android.view.Gravity.CENTER_VERTICAL;
-            topBar.addView(avatar, avlp);
+            topBar.addView(topAvatar, avlp);
         }
 
         TextView ver = new TextView(this);
@@ -844,7 +842,10 @@ public class MainActivity extends Activity {
         final String mail = store.ankiWebUser();
         final String style = store.avatarStyle(mail);
         android.graphics.Bitmap cached = Avatar.cached(this, mail, style);
-        if (cached != null && accountAvatar != null) accountAvatar.setImageBitmap(cached);
+        if (cached != null) {
+            if (accountAvatar != null) accountAvatar.setImageBitmap(cached);
+            if (topAvatar != null) topAvatar.setImageBitmap(cached);
+        }
         Th.bg(new Runnable() {
             @Override public void run() {
                 android.graphics.Bitmap loaded = Avatar.load(MainActivity.this, mail, style);
@@ -858,6 +859,7 @@ public class MainActivity extends Activity {
                 Th.ui(new Runnable() {
                     @Override public void run() {
                         if (accountAvatar != null) accountAvatar.setImageBitmap(b);
+                        if (topAvatar != null) topAvatar.setImageBitmap(b);
                     }
                 });
             }
