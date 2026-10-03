@@ -23,7 +23,7 @@ import org.json.JSONObject;
 
 /**
  * 制卡页（主界面）：
- *   单词（正面） → AI 按 PRMOPT 第二节第 3 条的格式自动填充背面 → 富文本微调 → 保存到 Anki。
+ *   输入一个词 → AI 按当前输出格式填充各字段 → 富文本微调 → 保存到 Anki。
  *
  * 编辑与预览全部在 assets/editor.html 里完成（contenteditable + MathJax + 真正的卡片模板），
  * 这样输入与预览能力与 Anki 桌面端一致（加粗/斜体/颜色/列表/引用/代码/挖空/公式/HTML 源码）。
@@ -43,6 +43,7 @@ public class CreateView extends LinearLayout {
     private TextView statusLine;
     private WebView editor;
     private boolean editorReady;
+    private TextView wordLabel;
     private ProgressBar aiBusy;
     private LinearLayout thinkingBox;
     private TextView thinkingHeader;
@@ -86,7 +87,7 @@ public class CreateView extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         // 标题行：宽屏时右边放 AI 徽标；窄屏徽标另起一行，否则标签会被挤断行
-        TextView wordLabel = smallLabel("正面 · 单词（你输入的词就是卡片正面）");
+        wordLabel = smallLabel("单词");   // 文案跟着当前输出格式的第一个字段走
         if (wide) {
             LinearLayout headRow = new LinearLayout(getContext());
             headRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -360,7 +361,23 @@ public class CreateView extends LinearLayout {
     }
 
     /** 设置页换了 config 之后调用：重建字段框并刷新模板 */
+
+    /** 顶部那个标签写当前格式的第一个字段名（以前写死"正面 · 单词"，但"正面"其实由格式决定） */
+    private void refreshWordLabel() {
+        if (wordLabel == null) return;
+        String name = "单词";
+        try {
+            CardConfig cfg = store.activeConfig();
+            if (cfg != null && cfg.fields != null && cfg.fields.size() > 0
+                    && cfg.fields.get(0).name != null && cfg.fields.get(0).name.length() > 0) {
+                name = cfg.fields.get(0).name;
+            }
+        } catch (Exception ignored) { }
+        wordLabel.setText(name + " · 你输入的词就是卡片开头的那一栏");
+    }
+
     public void refreshConfig() {
+        refreshWordLabel();
         pushConfig();
         pushTemplates();
         // 不同 config 有各自的默认值：换 config 后牌组/标签也跟着换
@@ -631,7 +648,7 @@ public class CreateView extends LinearLayout {
     private void save(final boolean asDraft) {
         final String word = wordInput.getText().toString().trim();
         if (word.length() == 0) {
-            status("先输入单词（卡片正面）", Ui.RED);
+            status("请先输入要制卡的词", Ui.RED);
             wordInput.requestFocus();
             return;
         }
