@@ -1,0 +1,11 @@
+# 构建中间产物
+build/
+*.idsig
+
+# 系统垃圾
+~$*
+Thumbs.db
+desktop.ini
+.DS_Store
+
+tools/lib/
