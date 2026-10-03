@@ -188,8 +188,7 @@ public class SettingsView extends LinearLayout {
         ai.addView(checkRow(thinkingCheck, "让思考型模型先思考"));
 
         TextView thinkingTip = new TextView(getContext());
-        thinkingTip.setText("默认关闭。实测 glm-4.5-flash：开思考要 23 秒、思考内容 1279 字，"
-                + "还会把 JSON 输出挤到截断（需要重试）；关掉后 4.5 秒且一次成型。");
+        thinkingTip.setText("默认关闭。开启后更慢，且长推理容易把 JSON 输出挤断（需要重试）。");
         thinkingTip.setTextColor(Ui.TEXT_DIM);
         thinkingTip.setTextSize(12);
         thinkingTip.setLineSpacing(0, 1.15f);
