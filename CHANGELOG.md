@@ -1,3 +1,13 @@
+## v1.15.6 · 2026-10-03 —— 修「同步失败：Only the original thread…」
+
+### 修
+- v1.15.3 加的"同步成功后刷新头像/状态灯"是在**后台线程**里执行的，直接改了 ImageView 与文本，
+  于是抛出 `Only the original thread that created a view hierarchy can touch its views`
+  （界面上表现为"同步失败"，其实同步本身已经成功）
+- 现在：`loadAvatarAsync()` 里碰控件的部分、以及同步成功/失败后的状态灯刷新，全部回到主线程；
+  `updateSyncLamp()` 自己也加了线程判断，任何线程调用都安全
+
+---
 ## v1.15.5 · 2026-10-03 —— 头像统一为圆角方形
 
 ### 改

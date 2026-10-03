@@ -860,11 +860,16 @@ public class MainActivity extends Activity {
     private void loadAvatarAsync() {
         final String mail = store.ankiWebUser();
         final String style = store.avatarStyle(mail);
-        android.graphics.Bitmap cached = Avatar.cached(this, mail, style);
-        if (cached != null) {
-            if (accountAvatar != null) accountAvatar.setImageBitmap(cached);
-            if (topAvatar != null) topAvatar.setImageBitmap(cached);
-        }
+        final android.graphics.Bitmap cached = Avatar.cached(this, mail, style);
+        // 这个方法可能从后台线程（同步成功后）调用，碰控件必须先回主线程
+        Th.ui(new Runnable() {
+            @Override public void run() {
+                if (cached != null) {
+                    if (accountAvatar != null) accountAvatar.setImageBitmap(cached);
+                    if (topAvatar != null) topAvatar.setImageBitmap(cached);
+                }
+            }
+        });
         Th.bg(new Runnable() {
             @Override public void run() {
                 // 先看收藏库：这是"另一台设备上传的那张"，优先级高于本地缓存与 Gravatar
@@ -1161,7 +1166,9 @@ public class MainActivity extends Activity {
                 try {
                     AnkiSync.Outcome out = AnkiSync.sync(MainActivity.this, store, user, pass, null);
                     toastUi(out.message);
-                    updateSyncLamp();
+                    Th.ui(new Runnable() {
+                        @Override public void run() { updateSyncLamp(); }
+                    });
                     loadAvatarAsync();   // 另一端刚上传的头像，同步完就能显示
                 } catch (final AnkiSync.FullSyncRequired f) {
                     Th.ui(new Runnable() {
@@ -1169,7 +1176,9 @@ public class MainActivity extends Activity {
                     });
                 } catch (final Exception e) {
                     toastUi("同步失败：" + e.getMessage());
-                    updateSyncLamp();
+                    Th.ui(new Runnable() {
+                        @Override public void run() { updateSyncLamp(); }
+                    });
                 }
             }
         });
@@ -1199,6 +1208,9 @@ public class MainActivity extends Activity {
                 try {
                     AnkiSync.Outcome out = AnkiSync.sync(MainActivity.this, store, user, pass, upload);
                     toastUi(out.message);
+                    Th.ui(new Runnable() {
+                        @Override public void run() { updateSyncLamp(); }
+                    });
                     loadAvatarAsync();
                 } catch (final Exception e) {
                     toastUi("全量同步失败：" + e.getMessage());
@@ -1221,6 +1233,12 @@ public class MainActivity extends Activity {
 
     /** 左下角指示灯：反映 AnkiWeb 登录/同步状态（顺带更新头像下面的小字） */
     public void updateSyncLamp() {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            Th.ui(new Runnable() {
+                @Override public void run() { updateSyncLamp(); }
+            });
+            return;
+        }
         boolean loggedIn = store.ankiWebHkey().length() > 0;
         long last = store.lastSyncAt();
         if (accountLabel != null) {
