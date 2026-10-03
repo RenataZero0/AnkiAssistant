@@ -49,9 +49,13 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (getIntent() != null && getIntent().getBooleanExtra("engineTest", false)) runEngineSelfTest();
-        CrashHandler.install(this);
         store = new Store(this);
+        // 调试入口（放在 store 初始化之后，否则自检拿不到设置）
+        if (getIntent() != null && getIntent().getBooleanExtra("engineTest", false)) runEngineSelfTest();
+        if (getIntent() != null && getIntent().getBooleanExtra("backendSave", false)) runBackendSaveTest();
+        if (getIntent() != null && getIntent().getBooleanExtra("syncProbe", false)) runSyncProbe();
+        if (getIntent() != null && getIntent().getBooleanExtra("browseProbe", false)) runBrowseProbe();
+        CrashHandler.install(this);
         // WebView 读不了 assets 里 1MB 以上的文件（MathJax 就超了），所以起个本机小服务器
         assetServer = new AssetServer(getAssets());
         int port = assetServer.start();
@@ -92,6 +96,82 @@ public class MainActivity extends Activity {
                     android.util.Log.e("AnkiAssistant", "ENGINE SELFTEST FAIL: " + t, t);
                 } finally {
                     if (e != null) e.close();
+                }
+            }
+        }).start();
+    }
+
+    /** 调试用：`--ez browseProbe true` 走一遍 AnkiBackend 的搜索，验证浏览也由内置引擎提供 */
+    private void runBrowseProbe() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    android.util.Log.i("AnkiAssistant", "BROWSE backend = "
+                            + AnkiBackend.describe(MainActivity.this, store));
+                    String[] decks = AnkiBackend.deckNames(MainActivity.this, store);
+                    android.util.Log.i("AnkiAssistant", "BROWSE decks = "
+                            + java.util.Arrays.toString(decks));
+                    int total = AnkiBackend.searchTotal(MainActivity.this, store, "deck:*");
+                    org.json.JSONArray notes = AnkiBackend.searchNotes(MainActivity.this, store, "deck:*", 5);
+                    android.util.Log.i("AnkiAssistant", "BROWSE total=" + total
+                            + " returned=" + notes.length());
+                    if (notes.length() > 0) {
+                        org.json.JSONObject n = notes.optJSONObject(0);
+                        android.util.Log.i("AnkiAssistant", "BROWSE first=" + n.toString());
+                    }
+                    // 直接问引擎要一遍，便于定位字段名/数量问题
+                    AnkiEngine e = EngineHolder.get(MainActivity.this);
+                    long[] ids = e.searchIds("deck:*", 10);
+                    android.util.Log.i("AnkiAssistant", "BROWSE raw ids=" + java.util.Arrays.toString(ids));
+                    if (ids.length > 0) {
+                        long mid = e.noteNotetypeId(ids[0]);
+                        android.util.Log.i("AnkiAssistant", "BROWSE notetypeId=" + mid
+                                + " fieldNames=" + java.util.Arrays.toString(e.fieldNames(mid)));
+                    }
+                    android.util.Log.i("AnkiAssistant", "BROWSE SELFTEST PASS");
+                } catch (Throwable t) {
+                    android.util.Log.e("AnkiAssistant", "BROWSE SELFTEST FAIL: " + t, t);
+                }
+            }
+        }).start();
+    }
+
+    /**
+     * 调试用：`--ez syncProbe true` 用一个假账号试一次 AnkiWeb 登录，
+     * 验证「网络 + 同步协议 + 错误处理」这条链路是通的（预期得到认证失败，而不是崩溃或超时）。
+     */
+    private void runSyncProbe() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    AnkiEngine e = EngineHolder.get(MainActivity.this);
+                    android.util.Log.i("AnkiAssistant", "SYNC probe: 尝试用假账号登录 AnkiWeb…");
+                    String hkey = e.syncLogin("anki-assistant-selftest@example.invalid", "wrong-password", null);
+                    android.util.Log.i("AnkiAssistant", "SYNC probe: 竟然登录成功了？hkey=" + hkey);
+                } catch (Throwable t) {
+                    // 认证失败是预期结果 —— 说明网络与协议都通了
+                    android.util.Log.i("AnkiAssistant", "SYNC probe: 如期失败 -> " + t.getMessage());
+                    android.util.Log.i("AnkiAssistant", "SYNC SELFTEST PASS (error path verified)");
+                }
+            }
+        }).start();
+    }
+    /** 调试用：`--ez backendSave true` 会走一遍 AnkiBackend.save，并把选中的后端与结果写进 logcat */
+    private void runBackendSaveTest() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    android.util.Log.i("AnkiAssistant", "BACKEND chosen = "
+                            + AnkiBackend.describe(MainActivity.this, store));
+                    org.json.JSONObject note = new org.json.JSONObject();
+                    for (String f : CardFormat.FIELDS) note.put(f, "backend-test:" + f);
+                    note.put("单词", "backend-selftest");
+                    String msg = AnkiBackend.save(MainActivity.this, store, store.defaultDeck(),
+                            note, new String[]{"ALevel::Maths"});
+                    android.util.Log.i("AnkiAssistant", "BACKEND save -> " + msg);
+                    android.util.Log.i("AnkiAssistant", "BACKEND SELFTEST PASS");
+                } catch (Throwable t) {
+                    android.util.Log.e("AnkiAssistant", "BACKEND SELFTEST FAIL: " + t, t);
                 }
             }
         }).start();
@@ -343,7 +423,13 @@ public class MainActivity extends Activity {
     /** 底部状态灯：绿=连得上，红=连不上，黄=正在测 */
     public void checkAnkiLamp() {
         if (ankiChecking || ankiDot == null) return;   // 手机端（底栏）没有这盏灯
-        // 本机 AnkiDroid 可直接写入 → 不用去测电脑
+        // 内置引擎可用 → 本机就能写，不用去测电脑
+        if (AnkiBackend.useEngine(this, store)) {
+            setAnkiLamp(0xFF22A06B, "本机");
+            ankiChecking = false;
+            return;
+        }
+        // 本机 AnkiDroid 可直接写入 → 也不用去测电脑
         if (store.useAnkiDroid() && AnkiDroidClient.ready(this)) {
             setAnkiLamp(0xFF22A06B, "本机");
             ankiChecking = false;

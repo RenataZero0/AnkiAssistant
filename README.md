@@ -254,6 +254,23 @@ java tools\MakeSecret.java "<新的Key>" "<新的40位口令>"
 **必须知道的风险**：只要密钥随 APK 分发，就一定能被逆向出来，加密只是把「随手提取」提高到「需要真正逆向」。
 所以本项目**只内置智谱这把免费档 Key**；付费余额的 Key（如 DeepSeek）不打包，要加就用上面那条命令单独生成。
 真要完全不可提取，只能把 Key 放到自己的服务端做代理转发。
+### 第三方组件与许可（AGPL 注意）
+
+本 APK **内含 Anki 官方 Rust 后端**（`librsdroid.so`），用于「内置引擎」模式：
+
+| 组件 | 来源 | 许可 |
+|---|---|---|
+| `rslib` / `rsdroid` | <https://github.com/ankidroid/Anki-Android-Backend>（含 `ankitects/anki` 子模块） | **AGPL-3.0** |
+| protobuf-javalite | `com.google.protobuf:protobuf-javalite` | BSD-3-Clause |
+| MathJax | <https://www.mathjax.org> | Apache-2.0 |
+
+`rslib/rsdroid` 采用 AGPL-3.0：**分发包含它的 APK 时，必须一并提供对应源码与许可声明**。
+对应源码即上面那个仓库（版本与 `tools/BUILD_ENGINE.md` 中记录的 commit / 工具链一致）。
+是否把本项目整体改为 AGPL-3.0 由作者决定；若不希望承担 AGPL 义务，
+可在设置里关掉「优先使用内置引擎」，此时可改用 AnkiDroid 或电脑端 AnkiConnect，
+并自行从 APK 中移除 `lib/*/librsdroid.so` 与 `gen/` 目录。
+
+内置引擎的编译步骤见 **`tools/BUILD_ENGINE.md`**。
 ### 仓库与自动更新
 
 - 本工程是**独立仓库**：<https://github.com/RenataZero0/AnkiAssistant>

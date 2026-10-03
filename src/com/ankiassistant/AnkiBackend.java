@@ -16,13 +16,20 @@ import org.json.JSONObject;
  */
 public class AnkiBackend {
 
-    /** 当前是否用本机 AnkiDroid */
+    /** 当前是否用内置引擎（APK 自带的 Anki 官方后端） */
+    public static boolean useEngine(Context c, Store store) {
+        return store.useEngine() && EngineHolder.available(c);
+    }
+
+    /** 当前是否用本机 AnkiDroid（内置引擎不可用时才考虑） */
     public static boolean useDevice(Context c, Store store) {
-        return store.useAnkiDroid() && AnkiDroidClient.ready(c);
+        return !useEngine(c, store) && store.useAnkiDroid() && AnkiDroidClient.ready(c);
     }
 
     /** 当前后端的一句话说明（设置页/状态灯用） */
     public static String describe(Context c, Store store) {
+        if (useEngine(c, store)) return "内置引擎（APK 自带，不需要电脑也不需要 AnkiDroid）";
+        if (store.useEngine() && !EngineHolder.available(c)) return "电脑 AnkiConnect（本机 ABI 无内置引擎）";
         if (useDevice(c, store)) return "本机 AnkiDroid（不需要电脑）";
         if (!store.useAnkiDroid()) return "电脑 AnkiConnect（本机开关已关）";
         if (!AnkiDroidClient.installed(c)) return "电脑 AnkiConnect（本机没装 AnkiDroid）";
@@ -35,6 +42,18 @@ public class AnkiBackend {
      */
     public static String save(Context c, Store store, String deck, JSONObject note,
                               String[] tags) throws Exception {
+        if (useEngine(c, store)) {
+            AnkiEngine e = EngineHolder.get(c);
+            long did = e.ensureDeck(deck);
+            long mid = e.ensureCardNotetype();
+            String[] values = new String[CardFormat.FIELDS.length];
+            for (int i = 0; i < CardFormat.FIELDS.length; i++) {
+                values[i] = note == null ? "" : note.optString(CardFormat.FIELDS[i], "");
+            }
+            long nid = e.addNote(did, mid, values, tags);
+            return "已写入本机收藏库（内置引擎）✓ note " + nid
+                    + "　点「同步到 AnkiWeb」即可推到云端";
+        }
         if (useDevice(c, store)) {
             long nid = AnkiDroidClient.saveNote(c, deck, note, tags);
             return "已保存到本机 AnkiDroid ✓" + (nid > 0 ? "（note " + nid + "）" : "")
@@ -54,6 +73,10 @@ public class AnkiBackend {
 
     /** 牌组列表（本机或电脑） */
     public static String[] deckNames(Context c, Store store) throws Exception {
+        if (useEngine(c, store)) {
+            java.util.Map<String, Long> m = EngineHolder.get(c).deckNames();
+            return m.keySet().toArray(new String[0]);
+        }
         if (useDevice(c, store)) return AnkiDroidClient.deckNames(c);
         JSONArray a = new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey()).deckNames();
         String[] out = new String[a.length()];
@@ -64,6 +87,7 @@ public class AnkiBackend {
     /** 按 Anki 搜索语法查笔记，返回与 notesInfo 同构的 JSON */
     public static JSONArray searchNotes(Context c, Store store, String query, int limit)
             throws Exception {
+        if (useEngine(c, store)) return EngineHolder.get(c).searchNotes(query, limit);
         if (useDevice(c, store)) return AnkiDroidClient.searchNotes(c, query, limit);
         AnkiClient anki = new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey());
         JSONArray ids = anki.findNotes(query);
@@ -74,6 +98,7 @@ public class AnkiBackend {
 
     /** 查到的总数（本机模式没有单独的计数接口，就用拿到的条数） */
     public static int searchTotal(Context c, Store store, String query) throws Exception {
+        if (useEngine(c, store)) return EngineHolder.get(c).searchCount(query);
         if (!useDevice(c, store)) {
             return new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey())
                     .findNotes(query).length();
@@ -85,6 +110,7 @@ public class AnkiBackend {
     public static int deleteNotes(Context c, Store store, JSONArray ids) throws Exception {
         long[] arr = new long[ids.length()];
         for (int i = 0; i < ids.length(); i++) arr[i] = ids.optLong(i, -1);
+        if (useEngine(c, store)) return EngineHolder.get(c).removeNotes(arr);
         if (useDevice(c, store)) return AnkiDroidClient.deleteNotes(c, arr);
         JSONArray a = new JSONArray();
         for (long id : arr) a.put(id);
@@ -99,6 +125,10 @@ public class AnkiBackend {
      * 返回一句给用户看的话。
      */
     public static String sync(Context c, Store store) throws Exception {
+        if (useEngine(c, store)) {
+            // 内置引擎：交给 AnkiSync 走完整的登录/比对/同步流程（设置页那个按钮）
+            return "内置引擎模式：请在「设置 → 内置引擎」里点「登录并同步到 AnkiWeb」";
+        }
         if (useDevice(c, store)) {
             AnkiDroidClient.openApp(c);
             return "已打开 AnkiDroid —— 它在启动时会自动同步（本机 API 不提供同步调用）";

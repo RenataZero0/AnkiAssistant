@@ -39,6 +39,10 @@ public class SettingsView extends LinearLayout {
     private Button deviceAuthBtn;
     private TextView engineStatus;
     private Button engineTestBtn;
+    private CheckBox engineCheck;
+    private TextView syncStatus;
+    private EditText syncUserInput, syncPassInput;
+    private Button syncBtn;
     private boolean checking;
 
     public SettingsView(MainActivity context) {
@@ -320,8 +324,32 @@ public class SettingsView extends LinearLayout {
         engTip.setLineSpacing(0, 1.15f);
         eng.addView(engTip);
 
+        engineCheck = new CheckBox(getContext());
+        engineCheck.setTextColor(Ui.TEXT_BODY);
+        engineCheck.setTextSize(14);
+        eng.addView(checkRow(engineCheck, "优先使用内置引擎（写进本机收藏库）"));
+
+        syncUserInput = input("AnkiWeb 邮箱", false);
+        syncPassInput = input("AnkiWeb 密码（只用于登录，不会存下来）", true);
+        addTo(eng, "AnkiWeb 账号", syncUserInput);
+        addTo(eng, "密码", syncPassInput);
+
         engineStatus = status();
         eng.addView(engineStatus);
+
+        syncBtn = new Button(getContext());
+        syncBtn.setText("登录并同步到 AnkiWeb");
+        Ui.primary(syncBtn);
+        syncBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { doAnkiWebSync(); }
+        });
+        LinearLayout.LayoutParams syncLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        syncLp.topMargin = Ui.dp(8);
+        eng.addView(syncBtn, syncLp);
+
+        syncStatus = status();
+        eng.addView(syncStatus);
 
         engineTestBtn = new Button(getContext());
         engineTestBtn.setText("检测内置引擎");
@@ -413,6 +441,9 @@ public class SettingsView extends LinearLayout {
         subjectInput.setText(store.subject());
         autoSyncBox.setChecked(store.autoSync());
         if (thinkingCheck != null) thinkingCheck.setChecked(store.aiThinking());
+        if (engineCheck != null) engineCheck.setChecked(store.useEngine());
+        if (syncUserInput != null) syncUserInput.setText(store.ankiWebUser());
+        if (syncStatus != null) syncStatus.setText(AnkiSync.describe(store));
         refreshAnkiDroid();
         refreshProviderBtn();
     }
@@ -437,6 +468,7 @@ public class SettingsView extends LinearLayout {
         store.setAutoSync(autoSyncBox.isChecked());
         if (thinkingCheck != null) store.setAiThinking(thinkingCheck.isChecked());
         if (deviceCheck != null) store.setUseAnkiDroid(deviceCheck.isChecked());
+        if (engineCheck != null) store.setUseEngine(engineCheck.isChecked());
         ankiStatus.setText("设置已保存 ✓");
         ankiStatus.setTextColor(Ui.GREEN);
         // 连接信息可能改了，侧栏那盏状态灯跟着复测一次（手机端没有灯，内部会自己忽略）
@@ -791,6 +823,88 @@ public class SettingsView extends LinearLayout {
                         engineStatus.setTextColor(c2);
                     }
                 });
+            }
+        });
+    }
+    /** 登录 AnkiWeb 并同步；需要全量同步时弹对话框让用户在"上传/下载"之间选 */
+    private void doAnkiWebSync() {
+        save();
+        final String user = syncUserInput.getText().toString().trim();
+        final String pass = syncPassInput.getText().toString();
+        syncBtn.setEnabled(false);
+        syncStatus.setText("正在登录并同步…（首次同步可能要一会儿）");
+        syncStatus.setTextColor(Ui.SUB);
+        Th.bg(new Runnable() {
+            @Override public void run() {
+                try {
+                    AnkiSync.Outcome out = AnkiSync.sync(getContext(), store, user, pass, null);
+                    syncPassInput.setText("");
+                    showSyncResult(out.message, Ui.GREEN);
+                } catch (final AnkiSync.FullSyncRequired f) {
+                    Th.ui(new Runnable() {
+                        @Override public void run() {
+                            syncBtn.setEnabled(true);
+                            askFullSyncPass2(user, pass, f.reason);
+                        }
+                    });
+                } catch (final Exception e) {
+                    syncPassInput.setText("");
+                    showSyncResult("同步失败：" + e.getMessage(), Ui.RED);
+                }
+            }
+        });
+    }
+
+    /** 第二轮：用户选完上传/下载后真正执行全量同步 */
+    private void askFullSyncPass2(final String user, final String pass, String reason) {
+        syncStatus.setText(reason + "　请选择同步方向：");
+        syncStatus.setTextColor(Ui.AMBER);
+        new AlertDialog.Builder(act)
+                .setTitle("需要全量同步")
+                .setMessage(reason + "\n\n上传：用本机的卡片覆盖云端\n下载：用云端覆盖本机"
+                        + "\n\n（如果本机是刚装的、云端才有你的卡片，选「下载云端」）")
+                .setPositiveButton("上传本机", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        runFullSync(user, pass, Boolean.TRUE);
+                    }
+                })
+                .setNeutralButton("下载云端", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        runFullSync(user, pass, Boolean.FALSE);
+                    }
+                })
+                .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        syncStatus.setText("已取消全量同步");
+                        syncStatus.setTextColor(Ui.AMBER);
+                    }
+                })
+                .show();
+    }
+
+    private void runFullSync(final String user, final String pass, final Boolean upload) {
+        syncStatus.setText(upload.booleanValue() ? "正在上传本机收藏库…" : "正在下载云端收藏库…");
+        syncStatus.setTextColor(Ui.SUB);
+        syncBtn.setEnabled(false);
+        Th.bg(new Runnable() {
+            @Override public void run() {
+                try {
+                    AnkiSync.Outcome out = AnkiSync.sync(getContext(), store, user, pass, upload);
+                    showSyncResult(out.message, Ui.GREEN);
+                } catch (final Exception e) {
+                    showSyncResult("全量同步失败：" + e.getMessage(), Ui.RED);
+                }
+            }
+        });
+    }
+
+    private void showSyncResult(final String msg, final int color) {
+        Th.ui(new Runnable() {
+            @Override public void run() {
+                syncBtn.setEnabled(true);
+                syncStatus.setText(msg + "\n" + AnkiSync.describe(store));
+                syncStatus.setTextColor(color);
+                if (deviceCheck != null) refreshAnkiDroid();
             }
         });
     }

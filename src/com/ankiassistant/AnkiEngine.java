@@ -54,6 +54,7 @@ public class AnkiEngine {
     private static final int S_DECKS = 7;
     private static final int S_NOTETYPES = 23;
     private static final int S_NOTES = 25;
+    private static final int S_SEARCH = 29;
 
     // ---- 方法编号（sync）----
     private static final int M_SYNC_MEDIA = 0;
@@ -70,6 +71,10 @@ public class AnkiEngine {
     private static final int M_ADD_NOTETYPE_LEGACY = 2;
     private static final int M_GET_NOTETYPE_ID_BY_NAME = 10;
     private static final int M_ADD_NOTE = 1;
+    private static final int M_GET_NOTE = 6;
+    private static final int M_REMOVE_NOTES = 7;
+    private static final int M_GET_FIELD_NAMES = 16;
+    private static final int M_SEARCH_NOTES = 2;
 
     /** 与电脑端一致：这就是写进 Anki 的笔记类型名 */
     private static final String NOTETYPE_NAME = CardFormat.MODEL_NAME;
@@ -241,6 +246,93 @@ public class AnkiEngine {
                 .build();
         AddNoteResponse res = parse(AddNoteResponse.parser(), call(S_NOTES, M_ADD_NOTE, req), "写入笔记");
         return res.getNoteId();
+    }
+
+    /** 按 Anki 搜索语法查笔记，返回**与 AnkiConnect notesInfo 同构**的 JSON（浏览页两边共用一套渲染） */
+    public org.json.JSONArray searchNotes(String query, int limit) throws EngineException {
+        java.util.LinkedHashMap<Long, String[]> cache = new java.util.LinkedHashMap<Long, String[]>();
+        org.json.JSONArray out = new org.json.JSONArray();
+        byte[] raw = call(S_SEARCH, M_SEARCH_NOTES,
+                anki.search.SearchRequest.newBuilder()
+                        .setSearch(query == null ? "" : query)
+                        .build());
+        anki.search.SearchResponse resp = parse(anki.search.SearchResponse.parser(), raw, "查询笔记");
+        java.util.List<Long> ids = resp.getIdsList();
+        for (int i = 0; i < ids.size() && i < limit; i++) {
+            long id = ids.get(i);
+            Note n;
+            try {
+                n = parse(Note.parser(), call(S_NOTES, M_GET_NOTE,
+                        anki.notes.NoteId.newBuilder().setNid(id).build()), "读取笔记");
+            } catch (EngineException e) {
+                continue;   // 单条读取失败不影响其它结果
+            }
+            String[] names = cache.get(n.getNotetypeId());
+            if (names == null) {
+                names = fieldNames(n.getNotetypeId());
+                cache.put(n.getNotetypeId(), names);
+            }
+            org.json.JSONObject o = new org.json.JSONObject();
+            try {
+                o.put("noteId", n.getId());
+                org.json.JSONArray tags = new org.json.JSONArray();
+                for (String t : n.getTagsList()) tags.put(t);
+                o.put("tags", tags);
+                org.json.JSONObject fields = new org.json.JSONObject();
+                java.util.List<String> vals = n.getFieldsList();
+                for (int k = 0; k < names.length; k++) {
+                    org.json.JSONObject fv = new org.json.JSONObject();
+                    fv.put("value", k < vals.size() ? vals.get(k) : "");
+                    fv.put("order", k);
+                    fields.put(names[k], fv);
+                }
+                o.put("fields", fields);
+                o.put("modelName", "");
+                out.put(o);
+            } catch (org.json.JSONException ignored) { }
+        }
+        return out;
+    }
+
+    /** 只要 id（调试/计数用） */
+    public long[] searchIds(String query, int limit) throws EngineException {
+        java.util.List<Long> ids = parse(anki.search.SearchResponse.parser(),
+                call(S_SEARCH, M_SEARCH_NOTES, anki.search.SearchRequest.newBuilder()
+                        .setSearch(query == null ? "" : query).build()), "查询笔记").getIdsList();
+        int n = Math.min(ids.size(), limit);
+        long[] out = new long[n];
+        for (int i = 0; i < n; i++) out[i] = ids.get(i);
+        return out;
+    }
+
+    /** 某条笔记的笔记类型 id */
+    public long noteNotetypeId(long noteId) throws EngineException {
+        return parse(Note.parser(), call(S_NOTES, M_GET_NOTE,
+                anki.notes.NoteId.newBuilder().setNid(noteId).build()), "读取笔记").getNotetypeId();
+    }
+    /** 查到的总数（只取 id，不读内容） */
+    public int searchCount(String query) throws EngineException {
+        return parse(anki.search.SearchResponse.parser(),
+                call(S_SEARCH, M_SEARCH_NOTES, anki.search.SearchRequest.newBuilder()
+                        .setSearch(query == null ? "" : query).build()), "查询笔记").getIdsCount();
+    }
+
+    /** 某个笔记类型的字段名 */
+    public String[] fieldNames(long notetypeId) throws EngineException {
+        anki.generic.StringList list = parse(anki.generic.StringList.parser(),
+                call(S_NOTETYPES, M_GET_FIELD_NAMES,
+                        anki.notetypes.NotetypeId.newBuilder().setNtid(notetypeId).build()),
+                "读取字段名");
+        return list.getValsList().toArray(new String[0]);
+    }
+
+    /** 删除笔记 */
+    public int removeNotes(long[] ids) throws EngineException {
+        anki.notes.RemoveNotesRequest.Builder b = anki.notes.RemoveNotesRequest.newBuilder();
+        for (long id : ids) b.addNoteIds(id);
+        parse(anki.collection.OpChangesWithCount.parser(),
+                call(S_NOTES, M_REMOVE_NOTES, b.build()), "删除笔记");
+        return ids.length;
     }
 
     // ------------------------------------------------------------ 同步（AnkiWeb）

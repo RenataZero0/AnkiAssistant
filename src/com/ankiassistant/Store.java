@@ -51,6 +51,25 @@ public class Store {
     public void setAnkiPort(String v) { put("ankiPort", v); }
 
     /**
+     * 优先用**内置引擎**（APK 里自带的 Anki 官方 Rust 后端）。默认开启：
+     * 可用就用它（不需要电脑、也不需要 AnkiDroid）；不可用自动回退到 AnkiDroid / 电脑。
+     */
+    public boolean useEngine() { return sp.getBoolean("useEngine", true); }
+    public void setUseEngine(boolean v) { sp.edit().putBoolean("useEngine", v).apply(); }
+
+    /** AnkiWeb 账号（只存邮箱；密码不落盘，登录后只保留后端签发的 hkey） */
+    public String ankiWebUser() { return sp.getString("ankiWebUser", ""); }
+    public void setAnkiWebUser(String v) { put("ankiWebUser", v == null ? "" : v.trim()); }
+
+    /** AnkiWeb 登录凭证（hkey，由后端签发；过期后需要重新输密码登录） */
+    public String ankiWebHkey() { return sp.getString("ankiWebHkey", ""); }
+    public void setAnkiWebHkey(String v) { put("ankiWebHkey", v == null ? "" : v.trim()); }
+
+    /** 上次同步成功的时间（毫秒，0 = 从未） */
+    public long lastSyncAt() { return sp.getLong("lastSyncAt", 0L); }
+    public void setLastSyncAt(long v) { sp.edit().putLong("lastSyncAt", v).apply(); }
+
+    /**
      * 优先用本机 AnkiDroid 写入（不需要电脑）。默认开启：
      * 装了 AnkiDroid 且授权了就本机写；没装或没授权则自动回退到电脑上的 AnkiConnect。
      */

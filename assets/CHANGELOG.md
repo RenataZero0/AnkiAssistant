@@ -10,6 +10,43 @@
 
 ---
 
+## v1.8.0 · 2026-10-03 —— 内置 Anki 引擎：彻底不要电脑，也不要 AnkiDroid
+
+### 新增
+- **APK 里自带了 Anki 官方的 Rust 后端**（`rslib` / `rsdroid`）：
+  - 自己交叉编译的 `librsdroid.so`（x86_64 + arm64-v8a，各约 37 MB；压缩进 APK 后总共约 20 MB）
+  - 手写 JNI 绑定（`net.ankiweb.rsdroid.NativeMethods`）+ `AnkiEngine` 封装，用 protobuf 与后端通信
+  - 收藏库放在应用私有目录（`filesDir/collection.anki2`），由后端自己维护
+- **制卡、浏览、搜索、删除、同步全部可由内置引擎完成**，既不需要电脑上的 Anki，
+  也不需要装 AnkiDroid。后端不可用时自动回退到 AnkiDroid → 电脑 AnkiConnect
+- **AnkiWeb 登录与同步**（设置 → 内置引擎）：
+  - 登录只保存后端签发的 hkey，**密码不落盘**
+  - 按后端判断执行：无需同步 / 普通同步（含媒体）/ 全量同步
+  - 需要全量同步时弹窗让用户选「上传本机」还是「下载云端」（与本机是空库时建议下载）
+- 侧栏状态灯在引擎可用时显示「本机」
+- 构建方法全部写进 `tools/BUILD_ENGINE.md`（含 NDK/Rust 版本、protoc 生成 descriptors、
+  服务/方法编号从哪来），换机器可复现
+
+### 实测（MuMu 模拟器，全程不碰电脑）
+- `ENGINE SELFTEST PASS`：原生库加载 → 后端启动 → 建收藏库 → 建牌组 → 建笔记类型 → 写笔记
+- 设备上的收藏库用 SQLite 核对：牌组 `Default` + `A Level Pure Mathematics`、
+  笔记类型 6 个官方 + `专业术语卡`、笔记 7 个字段齐全
+- `BACKEND chosen = 内置引擎`、`BACKEND save -> 已写入本机收藏库（内置引擎）✓`
+- 浏览：`BROWSE total=2 returned=2`，返回本机收藏库的笔记（字段名与标签都正确）
+- 同步链路：用假账号登录得到 AnkiWeb 真实回复 `Email or password was incorrect`，
+  说明网络、TLS、同步协议与错误回传都通（真实同步需要你自己的 AnkiWeb 账号在设备上登录）
+
+### 许可证（重要）
+- `rslib` / `rsdroid` 是 **AGPL-3.0**。本 APK 现在包含它，所以分发本 APK 时
+  必须一并提供对应源码与许可声明（见 README 的「第三方组件」一节）。
+  源码：<https://github.com/ankidroid/Anki-Android-Backend>（含 `anki` 子模块）
+
+### 已知限制
+- 首次同步如果云端已有内容，需要做一次全量同步（下载云端），之后的增量同步是自动的
+- 内置引擎与 AnkiDroid/电脑端是**各自独立的收藏库**，靠 AnkiWeb 汇总；
+  不要同时开两个客户端做全量上传，以免互相覆盖
+
+---
 ## v1.7.1 · 2026-10-03 —— 浏览/搜索也走本机 AnkiDroid（整条链路不再需要电脑）
 
 ### 新增
