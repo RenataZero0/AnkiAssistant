@@ -244,7 +244,7 @@ public class ChangelogView {
             boolean on = (i == active);
             c.setTextColor(on ? Ui.WHITE : Ui.SUB);
             c.setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-            c.setBackground(on ? Ui.press(Ui.ACCENT, 9) : Ui.press(Ui.WHITE, 9));
+            c.setBackground(on ? Ui.press(Ui.ACCENT, 9) : Ui.press(Ui.CARD, 9));
         }
     }
 

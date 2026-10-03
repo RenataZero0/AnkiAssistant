@@ -380,7 +380,7 @@ public class BrowseView extends LinearLayout {
         LinearLayout row = new LinearLayout(getContext());
         row.setOrientation(VERTICAL);
         row.setPadding(Ui.dp(12), Ui.dp(10), Ui.dp(12), Ui.dp(10));
-        row.setBackground(Ui.press(Ui.WHITE, 0));
+        row.setBackground(Ui.press(Ui.CARD, 0));   // 跟随皮肤，深色下不能是白条
 
         TextView t = new TextView(getContext());
         String title = plainText(firstFieldValue(note));
