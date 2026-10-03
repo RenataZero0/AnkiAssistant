@@ -10,6 +10,29 @@
 
 ---
 
+## v1.7.1 · 2026-10-03 —— 浏览/搜索也走本机 AnkiDroid（整条链路不再需要电脑）
+
+### 新增
+- **浏览页本机化**：牌组列表、按 Anki 搜索语法查询、卡片列表、详情预览都改走本机 AnkiDroid 的
+  ContentProvider（`notes` 的 selection 参数就是 Anki 搜索语句，AnkiDroid 内部用 `col.findNotes(query)` 执行），
+  本机结果被拼成与 AnkiConnect `notesInfo` **同构的 JSON**，因此渲染代码两边共用一套
+- **删除卡片**：本机模式直接删设备上的笔记（`DELETE content://…/notes/<id>`）
+- 「同步到云端」与本机模式的「图形化编辑」：AnkiDroid 的 API 没有这两个能力，
+  改为**自动打开 AnkiDroid**（它自己会同步 / 自己提供编辑器），并在界面里说明原因
+- 保存、查询、删除、同步、打开编辑器全部收敛到 `AnkiBackend`：**一处决定走本机还是电脑**
+
+### 修
+- 牌组查询的列名：本机 provider 是**按契约列名逐列匹配填值**的，牌组没有 `_id` 列，
+  必须用 `deck_id` / `deck_name`；写错列名不会报错、但一行都取不到（表现为「共 0 个牌组」）
+
+### 实测（电脑 IP 保持无效值；电脑 Anki 里确认没有这张卡）
+- 浏览页显示「**本机 AnkiDroid：共 1 个牌组**」→ 牌组列表 `A Level Pure Mathematics`
+- 点「查询」→「**共 1 张，显示前 1 张**」→ 列表项 `refraction`（标签 `ALevel::Maths`）
+- 点开详情：音标 / 词性 / 关联公式（MathJax 正常渲染）/ 中文 全部正确
+- 直接读设备上的 `collection.anki2` 核对：只有 `系统默认` + `A Level Pure Mathematics` 两个牌组、
+  笔记类型多了一个 `专业术语卡`、笔记 1 条（就是上面这张）
+
+---
 ## v1.7.0 · 2026-10-03 —— 本机写入：不再依赖电脑（走 AnkiDroid API）
 
 ### 新增

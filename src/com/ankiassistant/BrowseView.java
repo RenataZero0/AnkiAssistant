@@ -345,21 +345,22 @@ public class BrowseView extends LinearLayout {
     // ------------------------------------------------------------------ 数据
 
     private void loadDecks() {
-        cloudStatus.setText("正在连接 Anki…");
+        cloudStatus.setText(AnkiBackend.useDevice(getContext(), store) ? "正在读取本机 AnkiDroid…" : "正在连接电脑上的 Anki…");
         cloudStatus.setTextColor(Ui.TEXT_DIM);
         Th.bg(new Runnable() {
             @Override
             public void run() {
                 try {
-                    AnkiClient anki = client();
-                    final JSONArray names = anki.deckNames();
+                    final String[] dn = AnkiBackend.deckNames(getContext(), store);
+                    final JSONArray names = new JSONArray();
+                    for (String s : dn) names.put(s);
                     Th.ui(new Runnable() {
                         @Override
                         public void run() {
                             decksLoaded = true;
                             decks = new String[names.length()];
                             for (int i = 0; i < decks.length; i++) decks[i] = names.optString(i, "");
-                            cloudStatus.setText("已连接 Anki，共 " + decks.length + " 个牌组"
+                            cloudStatus.setText((AnkiBackend.useDevice(getContext(), store) ? "本机 AnkiDroid" : "电脑 Anki") + "：共 " + decks.length + " 个牌组"
                                     + (notes.length() > 0 ? "" : "，点「查询」列出卡片"));
                             cloudStatus.setTextColor(Ui.GREEN);
                         }
@@ -400,13 +401,9 @@ public class BrowseView extends LinearLayout {
             @Override
             public void run() {
                 try {
-                    AnkiClient anki = client();
-                    JSONArray ids = anki.findNotes(query);
-                    JSONArray take = new JSONArray();
-                    for (int i = 0; i < ids.length() && i < 100; i++) take.put(ids.opt(i));
-                    final JSONArray info = take.length() == 0
-                            ? new JSONArray() : anki.notesInfo(take);
-                    final int total = ids.length();
+                    final JSONArray info = AnkiBackend.searchNotes(getContext(), store, query, 100);
+                    int t = AnkiBackend.searchTotal(getContext(), store, query);
+                    final int total = t >= 0 ? t : info.length();
                     Th.ui(new Runnable() {
                         @Override
                         public void run() {
@@ -586,9 +583,9 @@ public class BrowseView extends LinearLayout {
             @Override
             public void run() {
                 try {
-                    client().guiEditNote(currentNoteId);
+                    final String msg = AnkiBackend.guiEdit(getContext(), store, currentNoteId);
                     Th.ui(new Runnable() {
-                        @Override public void run() { toastStatus("已在电脑上打开编辑器"); }
+                        @Override public void run() { toastStatus(msg); }
                     });
                 } catch (final Exception e) {
                     Th.ui(new Runnable() {
@@ -619,7 +616,7 @@ public class BrowseView extends LinearLayout {
                                 try {
                                     JSONArray ids = new JSONArray();
                                     ids.put(id);
-                                    client().deleteNotes(ids);
+                                    AnkiBackend.deleteNotes(getContext(), store, ids);
                                     Th.ui(new Runnable() {
                                         @Override public void run() {
                                             closeDetail();
@@ -640,17 +637,18 @@ public class BrowseView extends LinearLayout {
     }
 
     private void doSync() {
-        cloudStatus.setText("正在同步到 AnkiWeb…");
+        final boolean dev = AnkiBackend.useDevice(getContext(), store);
+        cloudStatus.setText(dev ? "本机模式：同步要在 AnkiDroid 里做，正在打开它…" : "正在同步到 AnkiWeb…");
         cloudStatus.setTextColor(Ui.SUB);
         Th.bg(new Runnable() {
             @Override
             public void run() {
                 try {
-                    client().sync();
+                    final String sm = AnkiBackend.sync(getContext(), store);
                     Th.ui(new Runnable() {
                         @Override public void run() {
-                            cloudStatus.setText("同步完成 ✓");
-                            cloudStatus.setTextColor(Ui.GREEN);
+                            cloudStatus.setText(sm);
+                            cloudStatus.setTextColor(dev ? Ui.AMBER : Ui.GREEN);
                         }
                     });
                 } catch (final Exception e) {

@@ -206,6 +206,146 @@ public class AnkiDroidClient {
         }
     }
 
+    // ------------------------------------------------------------ 读：牌组 / 搜索 / 删除
+
+    private static final Uri MODELS_FOR_READ = Uri.withAppendedPath(BASE, "models");
+
+    /**
+     * 本机所有牌组名。
+     * 注意列名要用契约里的名字：`deck_id` / `deck_name`（牌组没有 `_id` 这一列，
+     * provider 是按契约列名逐个匹配填值的，写错列名就一行都拿不到）。
+     */
+    public static String[] deckNames(Context c) throws ApiException {
+        java.util.ArrayList<String> out = new java.util.ArrayList<String>();
+        try {
+            Cursor cur = c.getContentResolver().query(DECKS,
+                    new String[]{"deck_id", "deck_name"}, null, null, null);
+            if (cur != null) {
+                try {
+                    while (cur.moveToNext()) {
+                        String n = cur.getString(cur.getColumnIndex("deck_name"));
+                        if (n != null && n.trim().length() > 0) out.add(n.trim());
+                    }
+                } finally {
+                    cur.close();
+                }
+            }
+        } catch (Exception e) {
+            throw new ApiException("读取牌组失败：" + e.getMessage()
+                    + (e instanceof SecurityException ? "（AnkiDroid 未授权）" : ""));
+        }
+        return out.toArray(new String[0]);
+    }
+
+    /** modelId -> 字段名数组（做详情展示时要知道字段名） */
+    static java.util.HashMap<Long, String[]> fieldNames(Context c) throws ApiException {
+        java.util.HashMap<Long, String[]> map = new java.util.HashMap<Long, String[]>();
+        try {
+            Cursor cur = c.getContentResolver().query(MODELS_FOR_READ,
+                    new String[]{"_id", "name", "field_names"}, null, null, null);
+            if (cur != null) {
+                try {
+                    while (cur.moveToNext()) {
+                        long id = cur.getLong(0);
+                        String f = cur.getString(2);
+                        map.put(id, f == null ? new String[0] : split(f.trim()));
+                    }
+                } finally {
+                    cur.close();
+                }
+            }
+        } catch (Exception e) {
+            throw new ApiException("读取笔记类型失败：" + e.getMessage()
+                    + (e instanceof SecurityException ? "（AnkiDroid 未授权）" : ""));
+        }
+        return map;
+    }
+
+    /**
+     * 按 Anki 搜索语法查笔记（`deck:"xxx" tag:yyy 关键词`），返回**与 AnkiConnect notesInfo 同构**的 JSON：
+     * `[{noteId, modelName, tags:[...], fields:{"字段名":{value, order}}}]`
+     * —— 这样浏览页的渲染代码两边共用一套。
+     */
+    public static org.json.JSONArray searchNotes(Context c, String query, int limit)
+            throws ApiException {
+        org.json.JSONArray out = new org.json.JSONArray();
+        String sel = (query == null || query.trim().length() == 0) ? null : query.trim();
+        try {
+            java.util.HashMap<Long, String[]> fnames = fieldNames(c);
+            Cursor cur = c.getContentResolver().query(NOTES,
+                    new String[]{"_id", "mid", "flds", "tags"}, sel, null, "mod DESC");
+            if (cur == null) return out;
+            try {
+                while (cur.moveToNext() && out.length() < limit) {
+                    long id = cur.getLong(0);
+                    long mid = cur.getLong(1);
+                    String[] vals = split(cur.getString(2));
+                    String tagsStr = cur.getString(3);
+                    String[] names = fnames.get(mid);
+                    if (names == null || names.length == 0) {
+                        names = new String[vals.length];
+                        for (int i = 0; i < vals.length; i++) names[i] = "字段" + (i + 1);
+                    }
+                    org.json.JSONObject n = new org.json.JSONObject();
+                    n.put("noteId", id);
+                    n.put("modelName", "");
+                    org.json.JSONArray tags = new org.json.JSONArray();
+                    if (tagsStr != null) {
+                        for (String t : tagsStr.trim().split("\\s+")) {
+                            if (t.length() > 0) tags.put(t);
+                        }
+                    }
+                    n.put("tags", tags);
+                    org.json.JSONObject fields = new org.json.JSONObject();
+                    for (int i = 0; i < names.length; i++) {
+                        org.json.JSONObject fv = new org.json.JSONObject();
+                        fv.put("value", i < vals.length ? vals[i] : "");
+                        fv.put("order", i);
+                        fields.put(names[i], fv);
+                    }
+                    n.put("fields", fields);
+                    out.put(n);
+                }
+            } finally {
+                cur.close();
+            }
+        } catch (Exception e) {
+            throw new ApiException("查询失败：" + e.getMessage()
+                    + (e instanceof SecurityException ? "（AnkiDroid 未授权）" : ""));
+        }
+        return out;
+    }
+
+    /** 删除本机的一张笔记（按 note id） */
+    public static int deleteNotes(Context c, long[] ids) throws ApiException {
+        if (ids == null || ids.length == 0) return 0;
+        int n = 0;
+        try {
+            for (long id : ids) {
+                n += c.getContentResolver().delete(
+                        Uri.withAppendedPath(NOTES, Long.toString(id)), null, null);
+            }
+        } catch (Exception e) {
+            throw new ApiException("删除失败：" + e.getMessage()
+                    + (e instanceof SecurityException ? "（AnkiDroid 未授权）" : ""));
+        }
+        return n;
+    }
+
+    /** 把 AnkiDroid 拉到前台（同步、图形化编辑都交给它做——API 里没有这两个能力） */
+    public static void openApp(Context c) {
+        try {
+            android.content.Intent i = c.getPackageManager()
+                    .getLaunchIntentForPackage(providerPackage(c));
+            if (i == null) i = new android.content.Intent(
+                    android.content.Intent.ACTION_MAIN).addCategory(
+                    android.content.Intent.CATEGORY_LAUNCHER)
+                    .setPackage(providerPackage(c));
+            i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            c.startActivity(i);
+        } catch (Exception ignored) { }
+    }
+
     // ------------------------------------------------------------ 一步到位
 
     /**
