@@ -29,17 +29,10 @@ import java.security.MessageDigest;
 public class Avatar {
 
     /** 可选风格：id 用于存储，label 给界面，dicebear 为空表示走 Gravatar 优先 */
+    /** 界面上只给两种选择：自己传一张，或换回默认（Gravatar）。 */
     public static final String[][] STYLES = {
-            {"custom", "自己上传（相册选图）", "custom"},
-            {"url", "从网址（可放 GitHub 仓库）", "url"},
-            {"auto", "自动（先 Gravatar 后生成）", ""},
-            {"initials", "字母", "initials"},
-            {"identicon", "几何图形", "identicon"},
-            {"shapes", "色块", "shapes"},
-            {"bottts", "机器人", "bottts"},
-            {"fun-emoji", "表情", "fun-emoji"},
-            {"adventurer", "卡通脸", "adventurer"},
-            {"letter", "本地字母（不联网）", "local"},
+            {"custom", "从相册选择（可裁剪）", "custom"},
+            {"auto", "换回默认头像（Gravatar）", ""},
     };
 
     private static String md5(String s) {

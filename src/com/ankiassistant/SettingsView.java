@@ -124,7 +124,7 @@ public class SettingsView extends LinearLayout {
             outer.addView(indexBox, new LinearLayout.LayoutParams(Ui.dp(126),
                     ViewGroup.LayoutParams.MATCH_PARENT));
         } else {
-            indexBox.setPadding(Ui.dp(8), Ui.dp(8), Ui.dp(8), Ui.dp(8));
+            indexBox.setPadding(Ui.dp(6), Ui.dp(6), Ui.dp(6), Ui.dp(6));
             ScrollView ix = new ScrollView(getContext());
             ix.setHorizontalScrollBarEnabled(false);
             ix.addView(indexBox, new ViewGroup.LayoutParams(
@@ -291,69 +291,6 @@ public class SettingsView extends LinearLayout {
         col.addView(cfgCard, cfgCardLp);
         addIndex("输出格式", cfgCard);
 
-        // ================= 更新内容（照 StudyCompanion 的做法，日志打包在 APK 内） =================
-        LinearLayout upd = card();
-        upd.addView(heading("更新内容"));
-        TextView ver = new TextView(getContext());
-        ver.setText("当前版本 " + Version.VERSION_TAG);
-        ver.setTextColor(Ui.TEXT_BODY);
-        ver.setTextSize(13);
-        ver.setLineSpacing(0, 1.2f);
-        upd.addView(ver);
-
-        if (Changelog.bundledNewer(getContext())) {
-            TextView warn = new TextView(getContext());
-            warn.setText("注意：打包进来的日志版本（v" + Changelog.latestVersion(
-                    Changelog.text(getContext())) + "）和当前运行版本不一致，构建时忘了改 Version.java？");
-            warn.setTextColor(Ui.AMBER);
-            warn.setTextSize(12);
-            warn.setLineSpacing(0, 1.15f);
-            warn.setPadding(0, Ui.dp(6), 0, 0);
-            upd.addView(warn);
-        }
-
-        Button logBtn = new Button(getContext());
-        logBtn.setText("查看更新内容");
-        Ui.primary(logBtn);
-        logBtn.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { ChangelogView.show(act); }
-        });
-        LinearLayout.LayoutParams logLp = new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        logLp.topMargin = Ui.dp(9);
-        logLp.rightMargin = Ui.dp(8);
-
-        Button checkBtn = new Button(getContext());
-        checkBtn.setText("检查更新");
-        Ui.secondary(checkBtn);
-        checkBtn.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { checkUpdate(); }
-        });
-        LinearLayout.LayoutParams chkLp = new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        chkLp.topMargin = Ui.dp(9);
-
-        LinearLayout updRow = new LinearLayout(getContext());
-        updRow.setOrientation(LinearLayout.HORIZONTAL);
-        updRow.addView(logBtn, logLp);
-        updRow.addView(checkBtn, chkLp);
-        upd.addView(updRow);
-
-        updateStatus = new TextView(getContext());
-        updateStatus.setTextColor(Ui.TEXT_DIM);
-        updateStatus.setTextSize(12.5f);
-        updateStatus.setLineSpacing(0, 1.15f);
-        updateStatus.setPadding(0, Ui.dp(7), 0, 0);
-        updateStatus.setVisibility(View.GONE);
-        upd.addView(updateStatus);
-
-        LinearLayout.LayoutParams updLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        updLp.bottomMargin = Ui.dp(11);
-        col.addView(upd, updLp);
-        addIndex("更新内容", upd);
-
-
         // ================= 同步 =================
         LinearLayout sync = card();
         sync.addView(heading("同步"));
@@ -483,6 +420,70 @@ public class SettingsView extends LinearLayout {
         col.addView(about, aboutLp);
         addIndex("关于", about);
 
+        // ================= 更新内容（照 StudyCompanion 的做法，日志打包在 APK 内） =================
+        LinearLayout upd = card();
+        upd.addView(heading("更新内容"));
+        TextView ver = new TextView(getContext());
+        ver.setText("当前版本 " + Version.VERSION_TAG);
+        ver.setTextColor(Ui.TEXT_BODY);
+        ver.setTextSize(13);
+        ver.setLineSpacing(0, 1.2f);
+        upd.addView(ver);
+
+        if (Changelog.bundledNewer(getContext())) {
+            TextView warn = new TextView(getContext());
+            warn.setText("注意：打包进来的日志版本（v" + Changelog.latestVersion(
+                    Changelog.text(getContext())) + "）和当前运行版本不一致，构建时忘了改 Version.java？");
+            warn.setTextColor(Ui.AMBER);
+            warn.setTextSize(12);
+            warn.setLineSpacing(0, 1.15f);
+            warn.setPadding(0, Ui.dp(6), 0, 0);
+            upd.addView(warn);
+        }
+
+        Button logBtn = new Button(getContext());
+        logBtn.setText("查看更新内容");
+        Ui.primary(logBtn);
+        logBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { ChangelogView.show(act); }
+        });
+        LinearLayout.LayoutParams logLp = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        logLp.topMargin = Ui.dp(9);
+        logLp.rightMargin = Ui.dp(8);
+
+        Button checkBtn = new Button(getContext());
+        checkBtn.setText("检查更新");
+        Ui.secondary(checkBtn);
+        checkBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { checkUpdate(); }
+        });
+        LinearLayout.LayoutParams chkLp = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        chkLp.topMargin = Ui.dp(9);
+
+        LinearLayout updRow = new LinearLayout(getContext());
+        updRow.setOrientation(LinearLayout.HORIZONTAL);
+        updRow.addView(logBtn, logLp);
+        updRow.addView(checkBtn, chkLp);
+        upd.addView(updRow);
+
+        updateStatus = new TextView(getContext());
+        updateStatus.setTextColor(Ui.TEXT_DIM);
+        updateStatus.setTextSize(12.5f);
+        updateStatus.setLineSpacing(0, 1.15f);
+        updateStatus.setPadding(0, Ui.dp(7), 0, 0);
+        updateStatus.setVisibility(View.GONE);
+        upd.addView(updateStatus);
+
+        LinearLayout.LayoutParams updLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        updLp.bottomMargin = Ui.dp(11);
+        col.addView(upd, updLp);
+        addIndex("更新内容", upd);
+
+
+
         loadValues();
         attachScrollSpy();
     }
@@ -501,7 +502,7 @@ public class SettingsView extends LinearLayout {
         item.setText(title);
         item.setTextSize(13.5f);
         item.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        item.setPadding(Ui.dp(13), Ui.dp(12), Ui.dp(8), Ui.dp(12));
+        item.setPadding(Ui.dp(13), Ui.dp(9), Ui.dp(10), Ui.dp(9));
         item.setLineSpacing(Ui.dp(2), 1f);
         item.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {

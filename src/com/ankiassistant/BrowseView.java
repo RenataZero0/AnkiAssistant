@@ -62,7 +62,7 @@ public class BrowseView extends LinearLayout {
 
     private void build() {
         // 页面自身留白：顶栏下面本来太空，加上内边距才不显得贴在一起
-        setPadding(Ui.dp(12), Ui.dp(14), Ui.dp(12), Ui.dp(12));
+        setPadding(Ui.dp(12), Ui.dp(10), Ui.dp(12), Ui.dp(10));
 
         // 分段控件：一条圆角灰底 + 两个等宽扁平标签（选中的是白底蓝字）
         LinearLayout seg = new LinearLayout(getContext());

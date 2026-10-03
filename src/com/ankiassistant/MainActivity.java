@@ -535,16 +535,16 @@ public class MainActivity extends Activity {
         GradientDrawable barBg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{Ui.CARD, Ui.PANEL});
         topBar.setBackground(barBg);
-        topBar.setElevation(Ui.dp(2));
+        // 不要阴影：手机上那层灰边看着很脏
         // 左右留白与各页面内容的 12dp 对齐，标题才会和下面的卡片左边缘齐平
         topBar.setPadding(Ui.dp(12), 0, Ui.dp(12), 0);
         topBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
         column.addView(topBar, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(56)));
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(isPhone() ? 48 : 56)));
 
         TextView title = new TextView(this);
         Ui.title(title, "Anki 助手");
-        title.setTextSize(18);
+        title.setTextSize(isPhone() ? 16.5f : 18);
         // 高度是撑满的，必须显式垂直居中，否则文字会贴在顶栏上沿
         title.setGravity(android.view.Gravity.CENTER_VERTICAL);
         topBar.addView(title, new LinearLayout.LayoutParams(
@@ -562,7 +562,7 @@ public class MainActivity extends Activity {
             avatar.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) { showAccountDialog(); }
             });
-            LinearLayout.LayoutParams avlp = new LinearLayout.LayoutParams(Ui.dp(28), Ui.dp(28));
+            LinearLayout.LayoutParams avlp = new LinearLayout.LayoutParams(Ui.dp(26), Ui.dp(26));
             avlp.rightMargin = Ui.dp(10);
             avlp.gravity = android.view.Gravity.CENTER_VERTICAL;
             topBar.addView(avatar, avlp);
@@ -574,7 +574,7 @@ public class MainActivity extends Activity {
         ver.setTextSize(11);
         ver.setGravity(android.view.Gravity.CENTER);
         ver.setBackground(Ui.round(Ui.PANEL, 8));
-        ver.setPadding(Ui.dp(9), Ui.dp(3), Ui.dp(9), Ui.dp(3));
+        ver.setPadding(Ui.dp(7), Ui.dp(2), Ui.dp(7), Ui.dp(2));
         topBar.addView(ver, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -882,8 +882,8 @@ public class MainActivity extends Activity {
         }
         new DialogUi.Builder(this)
                 .title("头像")
-                .message("头像按邮箱生成，同一账号在不同设备上会得到同一个头像；"
-                        + "家里没有外网时也可以用本地字母头像。")
+                .message("默认用 Gravatar（按邮箱取，换设备也是同一张）；"
+                        + "也可以从相册选一张，裁好后会写进收藏库跟着同步到别的设备。")
                 .choiceColors(colors)
                 .choices(names, checked, new DialogUi.Picker() {
                     @Override public void onPick(int which) {
@@ -930,32 +930,37 @@ public class MainActivity extends Activity {
         super.onActivityResult(req, result, data);
         if (req != REQ_AVATAR || result != RESULT_OK || data == null || data.getData() == null) return;
         final android.net.Uri uri = data.getData();
+        long sizeBytes = -1;
+        try {
+            android.database.Cursor cur = getContentResolver().query(uri, null, null, null, null);
+            if (cur != null) {
+                int idx = cur.getColumnIndex(android.provider.OpenableColumns.SIZE);
+                if (idx >= 0 && cur.moveToFirst()) sizeBytes = cur.getLong(idx);
+                cur.close();
+            }
+        } catch (Exception ignored) { }
+        // 上限 10MB；超了也不直接拒绝——反正会压缩到 256px，这里只是提示一下
+        final boolean big = sizeBytes > 10L * 1024 * 1024;
         final String mail = store.ankiWebUser();
         android.widget.Toast.makeText(this, "正在处理图片…", android.widget.Toast.LENGTH_SHORT).show();
         Th.bg(new Runnable() {
             @Override public void run() {
-                android.graphics.Bitmap src = decodeSampled(uri, 1024);
-                final android.graphics.Bitmap saved =
-                        src == null ? null : Avatar.saveCustom(MainActivity.this, mail, src);
+                final android.graphics.Bitmap src = decodeSampled(uri, 1600);
                 Th.ui(new Runnable() {
                     @Override public void run() {
-                        if (saved == null) {
+                        if (src == null) {
                             android.widget.Toast.makeText(MainActivity.this, "这张图读不出来，换一张试试",
                                     android.widget.Toast.LENGTH_LONG).show();
                             return;
                         }
-                        store.setAvatarStyle(mail, "custom");
-                        Avatar.pushToCloud(MainActivity.this, mail, saved);   // 随收藏库同步到别的设备
-                        loadAvatarAsync();
-                        android.widget.Toast.makeText(MainActivity.this, "头像已更新",
-                                android.widget.Toast.LENGTH_SHORT).show();
+                        showCropper(mail, src);
                     }
                 });
             }
         });
     }
 
-    /** 按显示需要解码（先量尺寸再采样，避免大图 OOM） */
+    /** 按显示需要解码（先量尺寸再采样，避免大图 OOM；最终头像固定压到 256px，通常不到 50KB） */
     private android.graphics.Bitmap decodeSampled(android.net.Uri uri, int max) {
         try {
             android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
@@ -974,6 +979,49 @@ public class MainActivity extends Activity {
         } catch (Throwable t) {
             return null;
         }
+    }
+
+
+    /** 裁剪弹窗：拖动图片、双指缩放，框内就是头像 */
+    private void showCropper(final String mail, final android.graphics.Bitmap src) {
+        final CropView crop = new CropView(this, src);
+        int h = (int) (getResources().getDisplayMetrics().heightPixels * 0.46f);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        TextView tip = new TextView(this);
+        tip.setText("拖动调整位置，双指缩放。方框内的部分会成为头像。");
+        tip.setTextColor(Ui.TEXT_DIM);
+        tip.setTextSize(12.5f);
+        tip.setPadding(0, 0, 0, Ui.dp(8));
+        box.addView(tip);
+        box.addView(crop, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, h));
+
+        new DialogUi.Builder(this)
+                .title("裁剪头像")
+                .content(box)
+                .negative("取消", null)
+                .positive("就用这张", new Runnable() {
+                    @Override public void run() {
+                        try {
+                            android.graphics.Bitmap cut = crop.cropped(256);
+                            android.graphics.Bitmap saved = Avatar.saveCustom(MainActivity.this, mail, cut);
+                            store.setAvatarStyle(mail, "custom");
+                            if (saved != null) {
+                                // 写进收藏库，随同步带到别的设备
+                                Avatar.pushToCloud(MainActivity.this, mail, saved);
+                            }
+                            loadAvatarAsync();
+                            android.widget.Toast.makeText(MainActivity.this, "头像已更新",
+                                    android.widget.Toast.LENGTH_SHORT).show();
+                        } catch (Throwable t) {
+                            android.widget.Toast.makeText(MainActivity.this,
+                                    "裁剪失败：" + t.getMessage(),
+                                    android.widget.Toast.LENGTH_LONG).show();
+                        }
+                    }
+                })
+                .show();
     }
 
     /** 让用户填一个图片网址（放到 GitHub 仓库就能多设备共用） */

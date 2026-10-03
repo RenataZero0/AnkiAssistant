@@ -101,6 +101,8 @@ public class Ui {
         b.setBackground(press(bg, 10));
         b.setTextColor(fg);
         b.setAllCaps(false);
+        b.setStateListAnimator(null);   // 去掉系统按钮自带的那层阴影
+        b.setElevation(0);
         b.setPadding(dp(14), dp(9), dp(14), dp(9));
         b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
     }

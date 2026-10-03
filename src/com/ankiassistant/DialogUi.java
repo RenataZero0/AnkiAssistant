@@ -84,8 +84,7 @@ public class DialogUi {
             LinearLayout root = new LinearLayout(act);
             root.setOrientation(LinearLayout.VERTICAL);
             root.setBackground(Ui.round(Ui.CARD, 20));
-            root.setPadding(Ui.dp(22), Ui.dp(20), Ui.dp(22), Ui.dp(12));
-            root.setElevation(Ui.dp(10));
+            root.setPadding(Ui.dp(20), Ui.dp(18), Ui.dp(20), Ui.dp(10));
 
             if (title != null && title.length() > 0) {
                 TextView t = new TextView(act);
@@ -231,13 +230,15 @@ public class DialogUi {
             Button b = new Button(act);
             b.setText(text);
             b.setAllCaps(false);
-            b.setTextSize(15);
+            b.setTextSize(14.5f);
             b.setTextColor(color);
             b.setTypeface(bold ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
             b.setBackground(Ui.press(0x00000000, 10));
-            b.setPadding(Ui.dp(16), Ui.dp(8), Ui.dp(16), Ui.dp(8));
+            b.setPadding(Ui.dp(10), Ui.dp(8), Ui.dp(10), Ui.dp(8));
             b.setMinWidth(0);
             b.setMinimumWidth(0);
+            b.setSingleLine(true);          // 中文按钮不能折成"登录并同/步"
+            b.setAllCaps(false);
             b.setStateListAnimator(null);
             b.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
@@ -247,7 +248,7 @@ public class DialogUi {
             });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp.leftMargin = Ui.dp(4);
+            lp.leftMargin = Ui.dp(2);
             row.addView(b, lp);
         }
     }
