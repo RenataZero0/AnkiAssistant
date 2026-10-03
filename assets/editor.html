@@ -57,6 +57,11 @@
   .fedit { min-height: 34px; outline: none; font-size: 16px; line-height: 1.55;
            color: #1b2432; word-break: break-word; }
   .fedit:empty:before { content: attr(data-ph); color: #9aa6b8; }
+/* 浏览页只读展示：没有输入框的最小高度，也没有占位符 */
+.fedit.ro { min-height: 0; }
+.fedit.ro:empty:before { content: none; }
+.notemeta { color: #8b98ac; font-size: 12.5px; padding: 2px 0 10px;
+  border-bottom: 1px solid #edf1f7; margin-bottom: 14px; }
   textarea.fedit { width: 100%; min-height: 78px; border: none; resize: vertical;
                    font-family: Consolas, Menlo, monospace; font-size: 14px; background: #f8fafc; }
   .htmltag { float: right; font-size: 11px; color: #9aa6b8; border: 1px solid #e5e9f0;
@@ -590,6 +595,43 @@ function typeset(el) {
     var n = $('mjnote');
     if (n) n.style.display = 'block';
   }
+}
+
+/* ---------------- 浏览页：只读展示一条笔记（复用同一套样式与 MathJax） ---------------- */
+
+function showNoteFields(payload) {
+  var pane = $('editPane');
+  if (!pane) return;
+  var stick = $('topSticky'); if (stick) stick.style.display = 'none';
+  var meta = $('metaPane'); if (meta) meta.style.display = 'none';
+  var prev = $('prevPane'); if (prev) prev.style.display = 'none';
+  pane.innerHTML = '';
+
+  if (payload && (payload.model || payload.tags)) {
+    var info = document.createElement('div');
+    info.className = 'notemeta';
+    info.textContent = (payload.model || '') + (payload.tags ? '　·　' + payload.tags : '');
+    pane.appendChild(info);
+  }
+
+  var list = (payload && payload.fields) ? payload.fields : [];
+  for (var i = 0; i < list.length; i++) {
+    var f = list[i];
+    if (!f || !f.value) continue;              /* 空字段不显示 */
+    var box = document.createElement('div');
+    box.className = 'field';
+    var head = document.createElement('div');
+    head.className = 'fhead';
+    head.textContent = f.name;
+    box.appendChild(head);
+    var val = document.createElement('div');
+    val.className = 'fedit ro';
+    val.innerHTML = f.value;                   /* 字段本身就是 HTML，交给 MathJax 处理公式 */
+    box.appendChild(val);
+    pane.appendChild(box);
+  }
+  typeset(pane);
+  window.scrollTo(0, 0);
 }
 
 /* ---------------- 工具栏 ---------------- */

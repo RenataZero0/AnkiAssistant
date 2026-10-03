@@ -86,6 +86,13 @@ public class AssetServer {
         return path;
     }
 
+    /** 浏览页详情用的动态页面内容（见 note.html 路由） */
+    private volatile String noteHtml = "<html><body></body></html>";
+
+    public void setNoteHtml(String html) {
+        noteHtml = html == null ? "" : html;
+    }
+
     /** 启动时探一下关键资源在不在。Windows 上 aapt2 曾把嵌套 assets 写成反斜杠路径，
      *  导致 AssetManager 找不到；这里只在失败时告警，正常情况不刷日志。 */
     private void dumpAssets() {
@@ -113,6 +120,15 @@ public class AssetServer {
             if (q >= 0) path = path.substring(0, q);
             if (path.startsWith("/")) path = path.substring(1);
             if (path.length() == 0) path = "editor.html";
+
+            // 浏览页详情：内容由 App 动态生成，必须走 http 提供（用 loadDataWithBaseURL 的话
+            // 页面是匿名来源，MathJax 的字体请求会被 WebView 挡掉，公式就只有空白）
+            if ("note.html".equals(path)) {
+                byte[] note = noteHtml.getBytes("UTF-8");
+                write(conn.getOutputStream(), 200, "text/html; charset=utf-8", note);
+                conn.close();
+                return;
+            }
             path = mapAsset(path);
 
             byte[] body;

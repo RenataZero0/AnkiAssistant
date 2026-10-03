@@ -61,6 +61,10 @@ public class MainActivity extends Activity {
             runSyncRealProbe(getIntent().getStringExtra("user"), getIntent().getStringExtra("pass"));
         }
         if (getIntent() != null && getIntent().getBooleanExtra("wipeCollection", false)) runWipeCollection();
+        if (getIntent() != null && getIntent().getBooleanExtra("restoreBackup", false)) runRestoreBackup();
+        if (getIntent() != null && getIntent().getBooleanExtra("assetProbe", false)) runAssetProbe();
+        if (getIntent() != null && getIntent().getBooleanExtra("migrateLegacy", false)) runMigrateProbe(false);
+        if (getIntent() != null && getIntent().getBooleanExtra("migrateLegacyApply", false)) runMigrateProbe(true);
         CrashHandler.install(this);
         android.util.Log.i("AnkiAssistant", "ACTIVE config = " + store.activeConfig().name
                 + " id=" + store.activeConfig().id);
@@ -186,6 +190,99 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** 调试用：`--ez restoreBackup true` 用 collection.anki2.bak 覆盖当前收藏库（会先关掉引擎） */
+    private void runRestoreBackup() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    EngineHolder.close();
+                    Thread.sleep(800);
+                    java.io.File dir = getFilesDir();
+                    java.io.File bak = new java.io.File(dir, "collection.anki2.bak");
+                    java.io.File cur = new java.io.File(dir, "collection.anki2");
+                    if (!bak.exists()) {
+                        android.util.Log.e("AnkiAssistant", "RESTORE 没有备份文件");
+                        return;
+                    }
+                    for (String extra : new String[]{"collection.anki2-wal", "collection.anki2-shm"}) {
+                        java.io.File f = new java.io.File(dir, extra);
+                        if (f.exists() && f.delete()) {
+                            android.util.Log.i("AnkiAssistant", "RESTORE 删除 " + extra);
+                        }
+                    }
+                    java.io.FileInputStream in = new java.io.FileInputStream(bak);
+                    java.io.FileOutputStream out = new java.io.FileOutputStream(cur);
+                    byte[] buf = new byte[65536];
+                    int n;
+                    while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                    in.close();
+                    out.close();
+                    android.util.Log.i("AnkiAssistant", "RESTORE 完成，" + (cur.length() / 1024) + " KB");
+                } catch (Throwable t) {
+                    android.util.Log.e("AnkiAssistant", "RESTORE FAIL: " + t, t);
+                }
+            }
+        }).start();
+    }
+
+    /** 调试用：`--ez assetProbe true` 直接抓资源服务器上的 MathJax 脚本与字体，看能不能取到 */
+    private void runAssetProbe() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try { Thread.sleep(4000); } catch (InterruptedException ignored) { }
+                String[] paths = {
+                        "mathjax/tex-mml-chtml.js",
+                        "mathjax/output/chtml/fonts/woff-v2/MathJax_Main-Regular.woff",
+                        "mathjax/output/chtml/fonts/woff-v2/MathJax_Math-Italic.woff",
+                        "mj-woff-MathJax_Main-Regular.woff",
+                };
+                String base = assetServerUrl();
+                android.util.Log.i("AnkiAssistant", "ASSET base=" + base);
+                for (String path : paths) {
+                    try {
+                        java.net.HttpURLConnection conn = (java.net.HttpURLConnection)
+                                new java.net.URL(base + path).openConnection();
+                        conn.setConnectTimeout(5000);
+                        conn.setReadTimeout(8000);
+                        int code = conn.getResponseCode();
+                        int len = conn.getContentLength();
+                        java.io.InputStream in = code == 200 ? conn.getInputStream() : conn.getErrorStream();
+                        int n = 0;
+                        if (in != null) {
+                            byte[] buf = new byte[8192];
+                            int r;
+                            while ((r = in.read(buf)) > 0) n += r;
+                            in.close();
+                        }
+                        android.util.Log.i("AnkiAssistant", "ASSET " + code + " " + path
+                                + " len=" + len + " read=" + n);
+                    } catch (Throwable t) {
+                        android.util.Log.e("AnkiAssistant", "ASSET FAIL " + path + " : " + t);
+                    }
+                }
+            }
+        }).start();
+    }
+
+    /** 调试用：`--ez migrateLegacy true` 只统计；`--ez migrateLegacyApply true` 真的转换 */
+    private void runMigrateProbe(final boolean apply) {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    NoteMigrator.Result r = NoteMigrator.convert(MainActivity.this, store, !apply);
+                    android.util.Log.i("AnkiAssistant", "MIGRATE " + (apply ? "APPLY" : "DRYRUN")
+                            + " scanned=" + r.scanned + " converted=" + r.converted
+                            + " skipped=" + r.skipped + " failed=" + r.failed
+                            + " | " + r.summary().replace("\n", " / "));
+                    for (String f : r.failures) {
+                        android.util.Log.w("AnkiAssistant", "MIGRATE fail " + f);
+                    }
+                } catch (Throwable t) {
+                    android.util.Log.e("AnkiAssistant", "MIGRATE FAIL: " + t, t);
+                }
+            }
+        }).start();
+    }
     /** 调试用：`--ez configProbe true` 自建 config → 设为当前 → 用它写一张卡 */
     private void runConfigProbe() {
         new Thread(new Runnable() {
@@ -317,6 +414,17 @@ public class MainActivity extends Activity {
         String base = assetServerUrl();
         return base != null ? base + "editor.html" : "file:///android_asset/editor.html";
     }
+
+    /** 本机资源服务器的基地址（浏览页渲染字段时也要用 MathJax） */
+    public String assetBaseUrl() { return assetServerUrl(); }
+
+    /** 浏览页详情：把动态 HTML 交给本机资源服务器输出（避免匿名来源导致字体/公式加载失败） */
+    public void setNoteHtml(String html) {
+        if (assetServer != null) assetServer.setNoteHtml(html);
+    }
+
+    /** 让子视图拿到设置 */
+    public Store store() { return store; }
 
     private String assetServerUrl() {
         if (assetServer == null) return null;

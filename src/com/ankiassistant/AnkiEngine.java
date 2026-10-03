@@ -74,6 +74,7 @@ public class AnkiEngine {
     private static final int M_GET_NOTE = 6;
     private static final int M_REMOVE_NOTES = 7;
     private static final int M_GET_FIELD_NAMES = 16;
+    private static final int M_GET_NOTETYPE_NAMES = 8;
     private static final int M_SEARCH_NOTES = 2;
 
     /** 写进 Anki 的笔记类型名 */
@@ -269,6 +270,8 @@ public class AnkiEngine {
     /** 按 Anki 搜索语法查笔记，返回浏览页统一使用的 JSON 形状 */
     public org.json.JSONArray searchNotes(String query, int limit) throws EngineException {
         java.util.LinkedHashMap<Long, String[]> cache = new java.util.LinkedHashMap<Long, String[]>();
+        java.util.HashMap<Long, String> ntNames;
+        try { ntNames = notetypeNames(); } catch (Exception ex) { ntNames = new java.util.HashMap<Long, String>(); }
         org.json.JSONArray out = new org.json.JSONArray();
         byte[] raw = call(S_SEARCH, M_SEARCH_NOTES,
                 anki.search.SearchRequest.newBuilder()
@@ -305,7 +308,8 @@ public class AnkiEngine {
                     fields.put(names[k], fv);
                 }
                 o.put("fields", fields);
-                o.put("modelName", "");
+                String ntName = ntNames.get(n.getNotetypeId());
+                o.put("modelName", ntName == null ? "" : ntName);
                 out.put(o);
             } catch (org.json.JSONException ignored) { }
         }
@@ -335,6 +339,17 @@ public class AnkiEngine {
                         .setSearch(query == null ? "" : query).build()), "查询笔记").getIdsCount();
     }
 
+    /** 笔记类型 id -> 名字（浏览时显示用） */
+    public java.util.HashMap<Long, String> notetypeNames() throws EngineException {
+        anki.notetypes.NotetypeNames names = parse(anki.notetypes.NotetypeNames.parser(),
+                call(S_NOTETYPES, M_GET_NOTETYPE_NAMES,
+                        anki.generic.Empty.getDefaultInstance()), "读取笔记类型");
+        java.util.HashMap<Long, String> out = new java.util.HashMap<Long, String>();
+        for (anki.notetypes.NotetypeNameId e : names.getEntriesList()) {
+            out.put(e.getId(), e.getName());
+        }
+        return out;
+    }
     /** 某个笔记类型的字段名 */
     public String[] fieldNames(long notetypeId) throws EngineException {
         anki.generic.StringList list = parse(anki.generic.StringList.parser(),

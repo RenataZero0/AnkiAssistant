@@ -174,19 +174,11 @@ public class SelfTest {
     static void config() throws Exception {
         System.out.println("== 输出格式 ==");
         java.util.List<CardConfig> builtins = CardConfig.builtins();
-        eq("内置格式个数", builtins.size(), 3);
-        eq("第一个是英语格式", builtins.get(0).name, "英语格式");
+        eq("内置格式个数", builtins.size(), 2);
+        eq("第一个是英语词汇（默认）", builtins.get(0).name, "英语词汇");
         eq("第二个是 A Level", builtins.get(1).name, "A Level Maths / Phy");
-        eq("第三个是英语词汇", builtins.get(2).name, "英语词汇");
-        eq("默认格式 = 英语格式", CardConfig.defaultConfig().name, "英语格式");
-
-        CardConfig en = builtins.get(0);
-        eq("英语格式字段数", en.fields.size(), 6);
-        ok("英语格式正面用第一个字段", en.cardFront().indexOf("{{单词}}") >= 0, en.cardFront());
-        ok("英语格式背面含音标行", en.cardBack().indexOf("【音标】") >= 0, "back");
-        ok("英语格式提示词带词", en.buildPrompt("apple", "通用英语").indexOf("apple") >= 0, "p");
-        ok("英语格式要求 JSON", en.buildPrompt("apple", "x").indexOf("JSON") >= 0, "p");
-        eq("英语格式自带默认牌组", en.deckOr("APP"), "英语词汇");
+        
+        eq("默认格式 = 英语词汇", CardConfig.defaultConfig().name, "英语词汇");
 
         CardConfig al = builtins.get(1);
         eq("A Level 字段数", al.fields.size(), 7);
@@ -196,20 +188,15 @@ public class SelfTest {
         eq("A Level 沿用应用级默认牌组", al.deckOr("APP-DECK"), "APP-DECK");
         ok("A Level 用应用级默认值", CardConfig.usesAppDefaults(al.id), "flag");
 
-        CardConfig vo = builtins.get(2);
+        CardConfig vo = builtins.get(0);
         eq("英语词汇字段数", vo.fields.size(), 4);
 
         JSONObject ai = new JSONObject();
         ai.put("phonetic", "英 /ˈæpl/");
-        ai.put("pos", "n");
-        ai.put("definition", "(n) a round fruit");
-        ai.put("example", "He ate an apple.");
         ai.put("chinese", "苹果");
-        JSONObject f = CardFormat.noteFieldsFor("apple", ai, en);
-        eq("笔记字段数 = 格式字段数", f.length(), 6);
+        JSONObject f = CardFormat.noteFieldsFor("apple", ai, vo);
+        eq("笔记字段数 = 格式字段数", f.length(), 4);
         eq("正面=用户输入", f.optString("单词", ""), "apple");
-        eq("释义映射", f.optString("释义", ""), "(n) a round fruit");
-        eq("例句映射", f.optString("例句", ""), "He ate an apple.");
         eq("中文映射", f.optString("中文", ""), "苹果");
 
         // 自定义格式：JSON 往返 + 模板按自己的字段走

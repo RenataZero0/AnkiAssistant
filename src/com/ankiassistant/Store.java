@@ -69,7 +69,7 @@ public class Store {
 
     /** 当前选中的 config（找不到就回落内置默认） */
     public CardConfig activeConfig() {
-        String id = sp.getString("activeConfigId", CardConfig.ID_ENGLISH);
+        String id = sp.getString("activeConfigId", CardConfig.ID_VOCAB_DEFAULT);
         for (CardConfig c : configs()) {
             if (c.id.equals(id)) return c;
         }
@@ -77,7 +77,7 @@ public class Store {
     }
 
     public void setActiveConfigId(String id) {
-        put("activeConfigId", id == null ? CardConfig.ID_ENGLISH : id);
+        put("activeConfigId", id == null ? CardConfig.ID_VOCAB_DEFAULT : id);
     }
 
     /** 新增或更新一条自定义格式（内置三个不允许改） */
@@ -104,7 +104,7 @@ public class Store {
             arr.put(x.toJson());
         }
         put("configs", arr.toString());
-        if (id.equals(sp.getString("activeConfigId", ""))) setActiveConfigId(CardConfig.ID_ENGLISH);
+        if (id.equals(sp.getString("activeConfigId", ""))) setActiveConfigId(CardConfig.ID_VOCAB_DEFAULT);
     }
     /** AnkiWeb 账号（只存邮箱；密码不落盘，登录后只保留后端签发的 hkey） */
     public String ankiWebUser() { return sp.getString("ankiWebUser", ""); }
