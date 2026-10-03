@@ -118,7 +118,7 @@ public class SettingsView extends LinearLayout {
 
         indexBox = new LinearLayout(getContext());
         indexBox.setOrientation(wide ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
-        indexBox.setBackgroundColor(Ui.PANEL);
+        indexBox.setBackgroundColor(Ui.CARD);
         if (wide) {
             indexBox.setPadding(Ui.dp(6), Ui.dp(14), Ui.dp(6), Ui.dp(10));
             outer.addView(indexBox, new LinearLayout.LayoutParams(Ui.dp(126),
@@ -499,9 +499,10 @@ public class SettingsView extends LinearLayout {
         if (indexBox == null) return;
         final TextView item = new TextView(getContext());
         item.setText(title);
-        item.setTextSize(13);
+        item.setTextSize(13.5f);
         item.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        item.setPadding(Ui.dp(12), Ui.dp(11), Ui.dp(8), Ui.dp(11));
+        item.setPadding(Ui.dp(13), Ui.dp(12), Ui.dp(8), Ui.dp(12));
+        item.setLineSpacing(Ui.dp(2), 1f);
         item.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 if (scroll != null) scroll.smoothScrollTo(0, Math.max(0, target.getTop() - Ui.dp(6)));
@@ -520,10 +521,17 @@ public class SettingsView extends LinearLayout {
         for (int i = 0; i < indexItems.size(); i++) {
             TextView t = (TextView) indexItems.get(i);
             boolean on = (i == active);
-            t.setTextColor(on ? Ui.ACCENT : Ui.TEXT_BODY);
+            t.setTextColor(on ? Ui.ACCENT : Ui.SUB);
+            t.setTextSize(on ? 14 : 13.5f);
             t.setTypeface(on ? android.graphics.Typeface.DEFAULT_BOLD
                     : android.graphics.Typeface.DEFAULT);
-            t.setBackground(on ? Ui.round(Ui.CARD, 9) : null);
+            // 选中：主色淡底 + 左侧一道主色条；未选中：透明（深色皮肤下也不会变成"一块黑洞"）
+            android.graphics.drawable.GradientDrawable bg = Ui.round(
+                    on ? Ui.ACCENT_SOFT : 0x00000000, 10);
+            if (on) {
+                bg.setStroke(Ui.dp(1), Ui.alpha(Ui.ACCENT, 0x44));
+            }
+            t.setBackground(bg);
         }
     }
 
@@ -763,14 +771,17 @@ public class SettingsView extends LinearLayout {
     private void pickSkin() {
         java.util.List<Theme> all = Theme.all();
         String[] names = new String[all.size()];
+        int[] dots = new int[all.size()];
         int checked = 0;
         for (int i = 0; i < all.size(); i++) {
             names[i] = all.get(i).name + (all.get(i).dark ? "（深色）" : "");
+            dots[i] = all.get(i).accent;
             if (all.get(i).id.equals(store.theme())) checked = i;
         }
         new DialogUi.Builder(act)
                 .title("选择皮肤")
                 .message("换皮肤会重建界面；正在编辑的卡片内容不会丢。")
+                .choiceColors(dots)
                 .choices(names, checked, new DialogUi.Picker() {
                     @Override public void onPick(int which) {
                         store.setTheme(Theme.all().get(which).id);

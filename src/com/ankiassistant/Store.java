@@ -40,6 +40,27 @@ public class Store {
     public void setUseEngine(boolean v) { sp.edit().putBoolean("useEngine", v).apply(); }
 
 
+    // ------------------------------------------------------------ 头像
+
+    /** 某个邮箱用的头像风格（见 Avatar.STYLES） */
+    public String avatarStyle(String email) {
+        return sp.getString("avatarStyle:" + (email == null ? "" : email.trim().toLowerCase()), "auto");
+    }
+
+    public void setAvatarStyle(String email, String style) {
+        put("avatarStyle:" + (email == null ? "" : email.trim().toLowerCase()),
+                style == null ? "auto" : style);
+    }
+
+    /** 某个邮箱头像图片的网址（"从网址"风格用） */
+    public String avatarUrl(String email) {
+        return sp.getString("avatarUrl:" + (email == null ? "" : email.trim().toLowerCase()), "");
+    }
+
+    public void setAvatarUrl(String email, String url) {
+        put("avatarUrl:" + (email == null ? "" : email.trim().toLowerCase()), url == null ? "" : url.trim());
+    }
+
     // ------------------------------------------------------------ 外观 / 同步 / 制卡习惯
 
     /** 皮肤 id */

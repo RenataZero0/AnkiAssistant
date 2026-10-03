@@ -45,6 +45,7 @@ public class DialogUi {
         private boolean messageIsHtml;
         private View content;
         private String[] items;
+        private int[] itemColors;
         private int checked;
         private Picker picker;
         private String posText, neuText, negText;
@@ -57,6 +58,9 @@ public class DialogUi {
         public Builder message(CharSequence m) { this.message = m; return this; }
         public Builder html(CharSequence m) { this.message = m; this.messageIsHtml = true; return this; }
         public Builder content(View v) { this.content = v; return this; }
+        /** 每一行前面画一个色点（例如皮肤列表） */
+        public Builder choiceColors(int[] colors) { this.itemColors = colors; return this; }
+
         public Builder choices(String[] items, int checked, Picker p) {
             this.items = items; this.checked = checked; this.picker = p; return this;
         }
@@ -137,6 +141,15 @@ public class DialogUi {
                     row.setGravity(Gravity.CENTER_VERTICAL);
                     row.setPadding(Ui.dp(12), Ui.dp(12), Ui.dp(10), Ui.dp(12));
                     row.setBackground(Ui.press(on ? Ui.ACCENT_SOFT : 0x00000000, 12));
+
+                    if (itemColors != null && i < itemColors.length) {
+                        View dot = new View(act);
+                        dot.setBackground(Ui.round(itemColors[i], 7));
+                        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(
+                                Ui.dp(14), Ui.dp(14));
+                        dlp.rightMargin = Ui.dp(11);
+                        row.addView(dot, dlp);
+                    }
 
                     TextView label = new TextView(act);
                     label.setText(items[i]);

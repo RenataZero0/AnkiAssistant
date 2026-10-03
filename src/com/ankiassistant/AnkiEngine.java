@@ -75,6 +75,13 @@ public class AnkiEngine {
     private static final int M_REMOVE_NOTES = 7;
     private static final int M_GET_FIELD_NAMES = 16;
     private static final int M_GET_NOTETYPE_NAMES = 8;
+
+    private static final int S_CONFIG = 9;
+    private static final int M_GET_CONFIG_JSON = 0;
+    private static final int M_SET_CONFIG_JSON = 1;
+
+    private static final int S_MEDIA = 41;
+    private static final int M_ADD_MEDIA_FILE = 2;
     private static final int M_SEARCH_NOTES = 2;
 
     /** 写进 Anki 的笔记类型名 */
@@ -464,6 +471,42 @@ public class AnkiEngine {
     }
 
     private MessageLite authReq(String hkey) { return auth(hkey); }
+
+
+    // ------------------------------------------------------------ 收藏库配置 / 媒体
+    // 这两样都会跟着 AnkiWeb 同步走，所以可以用它们把"跟账号相关的小东西"带到所有设备。
+
+    /** 读收藏库配置里的 JSON 字符串（没有就返回 null） */
+    public String getConfigJson(String key) throws EngineException {
+        try {
+            anki.generic.Json json = parse(anki.generic.Json.parser(),
+                    call(S_CONFIG, M_GET_CONFIG_JSON,
+                            anki.generic.String.newBuilder().setVal(key).build()), "读取配置");
+            String v = json.getJson().toStringUtf8();
+            return v == null || v.length() == 0 ? null : v;
+        } catch (EngineException e) {
+            return null;   // 没有这个键时后端可能直接报错，按"没设置"处理
+        }
+    }
+
+    /** 写收藏库配置（会跟着同步走） */
+    public void setConfigJson(String key, String jsonValue) throws EngineException {
+        call(S_CONFIG, M_SET_CONFIG_JSON, anki.config.SetConfigJsonRequest.newBuilder()
+                .setKey(key)
+                .setValueJson(com.google.protobuf.ByteString.copyFromUtf8(jsonValue))
+                .setUndoable(false)
+                .build());
+    }
+
+    /** 把文件放进收藏库的媒体目录（返回实际文件名；媒体会随同步上传） */
+    public String addMediaFile(String desiredName, byte[] data) throws EngineException {
+        anki.generic.String res = parse(anki.generic.String.parser(),
+                call(S_MEDIA, M_ADD_MEDIA_FILE, anki.media.AddMediaFileRequest.newBuilder()
+                        .setDesiredName(desiredName)
+                        .setData(com.google.protobuf.ByteString.copyFrom(data))
+                        .build()), "写入媒体文件");
+        return res.getVal();
+    }
 
     // ------------------------------------------------------------ 底层收发
 

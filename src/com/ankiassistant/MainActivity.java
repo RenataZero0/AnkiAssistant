@@ -40,6 +40,7 @@ public class MainActivity extends Activity {
     private NavItem[] railItems = new NavItem[3];
     private NavItem[] barItems = new NavItem[3];
     private TextView accountLabel;
+    private android.widget.ImageView accountAvatar;
     private View ankiDot;
     private TextView ankiLampText;
     private boolean ankiChecking;
@@ -61,6 +62,7 @@ public class MainActivity extends Activity {
             runSyncRealProbe(getIntent().getStringExtra("user"), getIntent().getStringExtra("pass"));
         }
         if (getIntent() != null && getIntent().getBooleanExtra("wipeCollection", false)) runWipeCollection();
+        if (getIntent() != null && getIntent().getBooleanExtra("avatarProbe", false)) runAvatarProbe();
         if (getIntent() != null && getIntent().getBooleanExtra("restoreBackup", false)) runRestoreBackup();
         if (getIntent() != null && getIntent().getBooleanExtra("assetProbe", false)) runAssetProbe();
         if (getIntent() != null && getIntent().getBooleanExtra("migrateLegacy", false)) runMigrateProbe(false);
@@ -189,6 +191,36 @@ public class MainActivity extends Activity {
         } catch (Throwable t) {
             android.util.Log.e("AnkiAssistant", "WIPE FAIL: " + t, t);
         }
+    }
+
+
+    /** 调试用：`--ez avatarProbe true` 验证头像写入收藏库（媒体+配置）再读回 */
+    private void runAvatarProbe() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    String mail = store.ankiWebUser();
+                    if (mail.length() == 0) mail = "probe@example.com";
+                    android.graphics.Bitmap bmp = Avatar.letterBitmap(mail, 256);
+                    boolean ok = Avatar.pushToCloud(MainActivity.this, mail, bmp);
+                    android.util.Log.i("AnkiAssistant", "AVATAR push=" + ok
+                            + " mediaName=" + Avatar.mediaName(mail));
+                    java.io.File f = new java.io.File(Avatar.mediaDir(MainActivity.this),
+                            Avatar.mediaName(mail));
+                    android.util.Log.i("AnkiAssistant", "AVATAR mediaFile exists=" + f.exists()
+                            + " size=" + (f.exists() ? f.length() : 0));
+                    AnkiEngine e = EngineHolder.get(MainActivity.this);
+                    String json = e.getConfigJson("ankiassistant.avatar."
+                            + Avatar.mediaName(mail).replace("ankiassistant-avatar-", "").replace(".png", ""));
+                    android.util.Log.i("AnkiAssistant", "AVATAR config=" + json);
+                    Avatar.clear(MainActivity.this, mail);
+                    android.graphics.Bitmap back = Avatar.pullFromCloud(MainActivity.this, mail, "custom");
+                    android.util.Log.i("AnkiAssistant", "AVATAR pull=" + (back != null));
+                } catch (Throwable t) {
+                    android.util.Log.e("AnkiAssistant", "AVATAR PROBE FAIL: " + t, t);
+                }
+            }
+        }).start();
     }
 
     /** 调试用：`--ez restoreBackup true` 用 collection.anki2.bak 覆盖当前收藏库（会先关掉引擎） */
@@ -610,14 +642,14 @@ public class MainActivity extends Activity {
         accountBtn.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { showAccountDialog(); }
         });
-        TextView logo = new TextView(this);
-        logo.setText("A");
-        logo.setTextColor(Ui.WHITE);
-        logo.setTextSize(17);
-        logo.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        logo.setGravity(android.view.Gravity.CENTER);
-        logo.setBackground(Ui.round(Ui.ACCENT, 11));
-        accountBtn.addView(logo, new LinearLayout.LayoutParams(Ui.dp(36), Ui.dp(36)));
+        accountAvatar = new android.widget.ImageView(this);
+        accountAvatar.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        accountAvatar.setBackground(Ui.round(Ui.ACCENT, 11));
+        accountAvatar.setClipToOutline(true);
+        android.graphics.drawable.GradientDrawable clip = Ui.round(Ui.ACCENT, 11);
+        accountAvatar.setBackground(clip);
+        accountBtn.addView(accountAvatar, new LinearLayout.LayoutParams(Ui.dp(36), Ui.dp(36)));
+        loadAvatarAsync();
         accountLabel = new TextView(this);
         accountLabel.setText("登录");
         accountLabel.setTextColor(Ui.SUB);
@@ -704,20 +736,22 @@ public class MainActivity extends Activity {
             card.setGravity(android.view.Gravity.CENTER_VERTICAL);
             card.setBackground(Ui.round(Ui.PANEL, 16));
             card.setPadding(Ui.dp(14), Ui.dp(14), Ui.dp(14), Ui.dp(14));
-            TextView avatar = new TextView(this);
-            avatar.setText("A");
-            avatar.setTextColor(Ui.WHITE);
-            avatar.setTextSize(20);
-            avatar.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            avatar.setGravity(android.view.Gravity.CENTER);
+            final String mail = store.ankiWebUser();
+            final android.widget.ImageView avatar = new android.widget.ImageView(this);
+            avatar.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
             avatar.setBackground(Ui.round(Ui.ACCENT, 12));
+            avatar.setClipToOutline(true);
+            android.graphics.Bitmap av = Avatar.cached(this, mail, store.avatarStyle(mail));
+            if (av != null) avatar.setImageBitmap(av);
+            avatar.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { showAvatarPicker(); }
+            });
             card.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(46), Ui.dp(46)));
 
             LinearLayout info = new LinearLayout(this);
             info.setOrientation(LinearLayout.VERTICAL);
             info.setPadding(Ui.dp(12), 0, 0, 0);
             TextView name = new TextView(this);
-            String mail = store.ankiWebUser();
             name.setText(mail.length() > 0 ? mail : "已登录 AnkiWeb");
             name.setTextColor(Ui.INK);
             name.setTextSize(15);
@@ -745,6 +779,9 @@ public class MainActivity extends Activity {
             new DialogUi.Builder(this)
                     .title("Anki 账号")
                     .content(box)
+                    .neutral("换头像", new Runnable() {
+                        @Override public void run() { showAvatarPicker(); }
+                    })
                     .negative("登出", new Runnable() {
                         @Override public void run() { confirmLogout(); }
                     })
@@ -794,6 +831,202 @@ public class MainActivity extends Activity {
                     @Override public void run() {
                         syncWithAccount(user.getText().toString().trim(),
                                 pass.getText().toString());
+                    }
+                })
+                .show();
+    }
+
+
+    // ------------------------------------------------------------------ 头像
+
+    /** 侧栏按钮上的头像：先显示缓存，再后台联网取一次 */
+    private void loadAvatarAsync() {
+        final String mail = store.ankiWebUser();
+        final String style = store.avatarStyle(mail);
+        android.graphics.Bitmap cached = Avatar.cached(this, mail, style);
+        if (cached != null && accountAvatar != null) accountAvatar.setImageBitmap(cached);
+        Th.bg(new Runnable() {
+            @Override public void run() {
+                android.graphics.Bitmap loaded = Avatar.load(MainActivity.this, mail, style);
+                if (Avatar.cached(MainActivity.this, mail, style) == null) {
+                    android.graphics.Bitmap fromCloud =
+                            Avatar.pullFromCloud(MainActivity.this, mail, style);
+                    if (fromCloud != null) loaded = fromCloud;
+                }
+                if (loaded == null) return;
+                final android.graphics.Bitmap b = loaded;
+                Th.ui(new Runnable() {
+                    @Override public void run() {
+                        if (accountAvatar != null) accountAvatar.setImageBitmap(b);
+                    }
+                });
+            }
+        });
+    }
+
+    /** 换头像：选一个风格（邮箱相同则各设备一致） */
+    private void showAvatarPicker() {
+        final String mail = store.ankiWebUser();
+        if (mail.length() == 0) {
+            android.widget.Toast.makeText(this, "登录后才能设置头像", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] names = new String[Avatar.STYLES.length];
+        int[] colors = new int[Avatar.STYLES.length];
+        int checked = 0;
+        String cur = store.avatarStyle(mail);
+        for (int i = 0; i < Avatar.STYLES.length; i++) {
+            names[i] = Avatar.STYLES[i][1];
+            colors[i] = Ui.ACCENT;
+            if (Avatar.STYLES[i][0].equals(cur)) checked = i;
+        }
+        new DialogUi.Builder(this)
+                .title("头像")
+                .message("头像按邮箱生成，同一账号在不同设备上会得到同一个头像；"
+                        + "家里没有外网时也可以用本地字母头像。")
+                .choiceColors(colors)
+                .choices(names, checked, new DialogUi.Picker() {
+                    @Override public void onPick(int which) {
+                        String style = Avatar.STYLES[which][0];
+                        if ("custom".equals(style)) { pickAvatarImage(); return; }
+                        if ("url".equals(style)) { askAvatarUrl(); return; }
+                        store.setAvatarStyle(mail, style);
+                        Avatar.clear(MainActivity.this, mail);
+                        loadAvatarAsync();
+                        android.widget.Toast.makeText(MainActivity.this,
+                                "头像已切换为「" + Avatar.STYLES[which][1] + "」",
+                                android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .neutral("重新获取", new Runnable() {
+                    @Override public void run() {
+                        Avatar.clear(MainActivity.this, mail);
+                        loadAvatarAsync();
+                    }
+                })
+                .negative("关闭", null)
+                .show();
+    }
+
+
+    private static final int REQ_AVATAR = 0x9A71;
+
+    /** 从相册/文件里选一张图当头像 */
+    private void pickAvatarImage() {
+        try {
+            android.content.Intent i = new android.content.Intent(
+                    android.content.Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+            i.setType("image/*");
+            startActivityForResult(i, REQ_AVATAR);
+        } catch (Exception e) {
+            android.widget.Toast.makeText(this, "打不开图片选择器：" + e.getMessage(),
+                    android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int req, int result, android.content.Intent data) {
+        super.onActivityResult(req, result, data);
+        if (req != REQ_AVATAR || result != RESULT_OK || data == null || data.getData() == null) return;
+        final android.net.Uri uri = data.getData();
+        final String mail = store.ankiWebUser();
+        android.widget.Toast.makeText(this, "正在处理图片…", android.widget.Toast.LENGTH_SHORT).show();
+        Th.bg(new Runnable() {
+            @Override public void run() {
+                android.graphics.Bitmap src = decodeSampled(uri, 1024);
+                final android.graphics.Bitmap saved =
+                        src == null ? null : Avatar.saveCustom(MainActivity.this, mail, src);
+                Th.ui(new Runnable() {
+                    @Override public void run() {
+                        if (saved == null) {
+                            android.widget.Toast.makeText(MainActivity.this, "这张图读不出来，换一张试试",
+                                    android.widget.Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        store.setAvatarStyle(mail, "custom");
+                        Avatar.pushToCloud(MainActivity.this, mail, saved);   // 随收藏库同步到别的设备
+                        loadAvatarAsync();
+                        android.widget.Toast.makeText(MainActivity.this, "头像已更新",
+                                android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        });
+    }
+
+    /** 按显示需要解码（先量尺寸再采样，避免大图 OOM） */
+    private android.graphics.Bitmap decodeSampled(android.net.Uri uri, int max) {
+        try {
+            android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            java.io.InputStream in1 = getContentResolver().openInputStream(uri);
+            android.graphics.BitmapFactory.decodeStream(in1, null, o);
+            if (in1 != null) in1.close();
+            int sample = 1;
+            while (o.outWidth / sample > max || o.outHeight / sample > max) sample *= 2;
+            android.graphics.BitmapFactory.Options o2 = new android.graphics.BitmapFactory.Options();
+            o2.inSampleSize = sample;
+            java.io.InputStream in2 = getContentResolver().openInputStream(uri);
+            android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeStream(in2, null, o2);
+            if (in2 != null) in2.close();
+            return b;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** 让用户填一个图片网址（放到 GitHub 仓库就能多设备共用） */
+    private void askAvatarUrl() {
+        final String mail = store.ankiWebUser();
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        TextView tip = new TextView(this);
+        tip.setText("填一个能直接打开图片的网址（GitHub raw 链接也行）。"
+                + "下载后会缓存在本机，之后离线也能显示。");
+        tip.setTextColor(Ui.TEXT_DIM);
+        tip.setTextSize(12.5f);
+        tip.setLineSpacing(Ui.dp(3), 1f);
+        box.addView(tip);
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setSingleLine(true);
+        input.setHint("https://raw.githubusercontent.com/…/avatar.png");
+        input.setText(store.avatarUrl(mail));
+        Ui.field(input);
+        box.addView(DialogUi.label(this, "图片网址"));
+        box.addView(DialogUi.inputWrap(this, input));
+
+        new DialogUi.Builder(this)
+                .title("从网址设置头像")
+                .content(box)
+                .negative("取消", null)
+                .positive("下载", new Runnable() {
+                    @Override public void run() {
+                        final String url = input.getText().toString().trim();
+                        if (url.length() == 0) return;
+                        store.setAvatarUrl(mail, url);
+                        store.setAvatarStyle(mail, "url");
+                        Avatar.clear(MainActivity.this, mail);
+                        android.widget.Toast.makeText(MainActivity.this, "正在下载…",
+                                android.widget.Toast.LENGTH_SHORT).show();
+                        Th.bg(new Runnable() {
+                            @Override public void run() {
+                                final android.graphics.Bitmap b =
+                                        Avatar.downloadInto(MainActivity.this, mail, "url", url);
+                                Th.ui(new Runnable() {
+                                    @Override public void run() {
+                                        if (b == null) {
+                                            android.widget.Toast.makeText(MainActivity.this,
+                                                    "下载失败，检查网址或网络", android.widget.Toast.LENGTH_LONG).show();
+                                        } else {
+                                            loadAvatarAsync();
+                                            android.widget.Toast.makeText(MainActivity.this, "头像已更新",
+                                                    android.widget.Toast.LENGTH_SHORT).show();
+                                        }
+                                    }
+                                });
+                            }
+                        });
                     }
                 })
                 .show();
