@@ -82,6 +82,7 @@ public class MainActivity extends Activity {
         maybeIntro();
         // 启动就测一次 Anki 连接，侧栏底部那盏灯直接反映真实状态
         if (rail != null) updateSyncLamp();
+        loadAvatarAsync();   // 布局建好后统一加载一次（手机没有侧栏，必须放在这里）
     }
 
     /**
@@ -433,6 +434,7 @@ public class MainActivity extends Activity {
         if (requestCode == AnkiDroidClient.PERM_REQUEST) {
 
             if (rail != null) updateSyncLamp();
+        loadAvatarAsync();   // 布局建好后统一加载一次（手机没有侧栏，必须放在这里）
             if (grantResults != null && grantResults.length > 0
                     && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 android.widget.Toast.makeText(this, "已授权：本机 AnkiDroid 兜底可用",
@@ -647,7 +649,6 @@ public class MainActivity extends Activity {
         android.graphics.drawable.GradientDrawable clip = Ui.round(Ui.ACCENT, 11);
         accountAvatar.setBackground(clip);
         accountBtn.addView(accountAvatar, new LinearLayout.LayoutParams(Ui.dp(36), Ui.dp(36)));
-        loadAvatarAsync();
         accountLabel = new TextView(this);
         accountLabel.setText("登录");
         accountLabel.setTextColor(Ui.SUB);
