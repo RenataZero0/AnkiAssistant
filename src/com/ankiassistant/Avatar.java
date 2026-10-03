@@ -289,9 +289,9 @@ public class Avatar {
         p.setTypeface(Typeface.DEFAULT_BOLD);
         p.setTextSize(s * 0.46f);
         p.setTextAlign(Paint.Align.CENTER);
-        Rect r = new Rect();
-        p.getTextBounds(ch, 0, ch.length(), r);
-        cv.drawText(ch, s / 2f, s / 2f + r.height() / 2f, p);
+        Rect bounds = new Rect();
+        p.getTextBounds(ch, 0, ch.length(), bounds);
+        cv.drawText(ch, s / 2f, s / 2f + bounds.height() / 2f, p);
         return b;
     }
 }
