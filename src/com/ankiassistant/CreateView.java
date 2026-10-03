@@ -577,11 +577,27 @@ public class CreateView extends LinearLayout {
                     return;
                 }
                 js("setSaving(true)");
-                status("正在保存到 Anki…", Ui.SUB);
+                final boolean useDevice = store.useAnkiDroid() && AnkiDroidClient.ready(getContext());
+                status(useDevice ? "正在保存到本机 AnkiDroid…" : "正在保存到电脑上的 Anki…", Ui.SUB);
                 Th.bg(new Runnable() {
                     @Override
                     public void run() {
                         try {
+                            if (useDevice) {
+                                // 不依赖电脑：直接写本机 AnkiDroid 的收藏库
+                                final long nid = AnkiDroidClient.saveNote(getContext(), deck, note,
+                                        jsonToStrings(parseTags(tags)));
+                                Th.ui(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        js("setSaving(false)");
+                                        clearEditor();
+                                        status("已保存到本机 AnkiDroid ✓ note " + nid
+                                                + "（在 AnkiDroid 里同步一次即可推到 AnkiWeb）", Ui.GREEN);
+                                    }
+                                });
+                                return;
+                            }
                             AnkiClient anki = new AnkiClient(store.ankiHost(), store.ankiPort(),
                                     store.ankiApiKey());
                             long id = anki.saveNote(deck, note, parseTags(tags), store.autoSync());
@@ -595,15 +611,15 @@ public class CreateView extends LinearLayout {
                                             : "已保存到本地 Anki（自动同步已关闭）✓", Ui.GREEN);
                                 }
                             });
-                        } catch (final AnkiClient.AnkiException e) {
-                            // Anki 连不上：自动转草稿，卡片不会丢
+                        } catch (final Exception e) {
+                            // 两种后端都失败：自动转草稿，卡片不会丢
                             store.addDraft(word, note, deck, tags);
                             Th.ui(new Runnable() {
                                 @Override
                                 public void run() {
                                     js("setSaving(false)");
-                                    status("Anki 没连上，已自动转存草稿箱。原因：" + e.getMessage(),
-                                            Ui.AMBER);
+                                    status((useDevice ? "本机 AnkiDroid 写入失败" : "Anki 没连上")
+                                            + "，已自动转存草稿箱。原因：" + e.getMessage(), Ui.AMBER);
                                 }
                             });
                         }
@@ -611,6 +627,20 @@ public class CreateView extends LinearLayout {
                 });
             }
         });
+    }
+
+    /** JSONArray -> String[]（本机 AnkiDroid 那边要数组） */
+    static String[] jsonToStrings(JSONArray arr) {
+        if (arr == null || arr.length() == 0) return new String[0];
+        String[] out = new String[arr.length()];
+        for (int i = 0; i < arr.length(); i++) out[i] = arr.optString(i, "");
+        return out;
+    }
+
+    /** 标签字符串 -> 数组（空格/逗号分隔） */
+    public static String[] parseTagsToArray(String tags) {
+        JSONArray a = parseTags(tags);
+        return jsonToStrings(a);
     }
 
     public static JSONArray parseTags(String tags) {

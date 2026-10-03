@@ -50,6 +50,12 @@ public class Store {
     }
     public void setAnkiPort(String v) { put("ankiPort", v); }
 
+    /**
+     * 优先用本机 AnkiDroid 写入（不需要电脑）。默认开启：
+     * 装了 AnkiDroid 且授权了就本机写；没装或没授权则自动回退到电脑上的 AnkiConnect。
+     */
+    public boolean useAnkiDroid() { return sp.getBoolean("useAnkiDroid", true); }
+    public void setUseAnkiDroid(boolean v) { sp.edit().putBoolean("useAnkiDroid", v).apply(); }
     public String ankiApiKey() { return sp.getString("ankiApiKey", ""); }
     public void setAnkiApiKey(String v) { put("ankiApiKey", v); }
 

@@ -63,6 +63,22 @@ public class MainActivity extends Activity {
         if (rail != null) checkAnkiLamp();
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == AnkiDroidClient.PERM_REQUEST) {
+            if (settingsView != null) settingsView.refreshAnkiDroid();
+            if (rail != null) checkAnkiLamp();
+            if (grantResults != null && grantResults.length > 0
+                    && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                android.widget.Toast.makeText(this, "已授权：现在可以直接写本机 AnkiDroid，不需要电脑",
+                        android.widget.Toast.LENGTH_LONG).show();
+            } else {
+                android.widget.Toast.makeText(this, "没有授权，仍会走电脑上的 AnkiConnect",
+                        android.widget.Toast.LENGTH_LONG).show();
+            }
+        }
+    }
     /** 编辑器页面地址：优先走本机 http，失败则退回 file:// */
     public String editorUrl() {
         String base = assetServerUrl();
@@ -293,6 +309,12 @@ public class MainActivity extends Activity {
     /** 底部状态灯：绿=连得上，红=连不上，黄=正在测 */
     public void checkAnkiLamp() {
         if (ankiChecking || ankiDot == null) return;   // 手机端（底栏）没有这盏灯
+        // 本机 AnkiDroid 可直接写入 → 不用去测电脑
+        if (store.useAnkiDroid() && AnkiDroidClient.ready(this)) {
+            setAnkiLamp(0xFF22A06B, "本机");
+            ankiChecking = false;
+            return;
+        }
         ankiChecking = true;
         setAnkiLamp(0xFFF5A623, "检测中");
         Th.bg(new Runnable() {

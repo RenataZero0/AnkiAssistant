@@ -364,7 +364,7 @@ public class BrowseView extends LinearLayout {
                             cloudStatus.setTextColor(Ui.GREEN);
                         }
                     });
-                } catch (final AnkiClient.AnkiException e) {
+                } catch (final Exception e) {
                     Th.ui(new Runnable() {
                         @Override
                         public void run() {
@@ -414,7 +414,7 @@ public class BrowseView extends LinearLayout {
                             renderNotes(total);
                         }
                     });
-                } catch (final AnkiClient.AnkiException e) {
+                } catch (final Exception e) {
                     Th.ui(new Runnable() {
                         @Override
                         public void run() {
@@ -590,7 +590,7 @@ public class BrowseView extends LinearLayout {
                     Th.ui(new Runnable() {
                         @Override public void run() { toastStatus("已在电脑上打开编辑器"); }
                     });
-                } catch (final AnkiClient.AnkiException e) {
+                } catch (final Exception e) {
                     Th.ui(new Runnable() {
                         @Override public void run() { toastStatus("打开失败：" + e.getMessage()); }
                     });
@@ -626,7 +626,7 @@ public class BrowseView extends LinearLayout {
                                             query();
                                         }
                                     });
-                                } catch (final AnkiClient.AnkiException e) {
+                                } catch (final Exception e) {
                                     Th.ui(new Runnable() {
                                         @Override public void run() { toastStatus("删除失败：" + e.getMessage()); }
                                     });
@@ -653,7 +653,7 @@ public class BrowseView extends LinearLayout {
                             cloudStatus.setTextColor(Ui.GREEN);
                         }
                     });
-                } catch (final AnkiClient.AnkiException e) {
+                } catch (final Exception e) {
                     Th.ui(new Runnable() {
                         @Override public void run() {
                             cloudStatus.setText("同步失败：" + e.getMessage());
@@ -772,8 +772,9 @@ public class BrowseView extends LinearLayout {
             public void run() {
                 try {
                     JSONObject fields = draft.optJSONObject("fields");
-                    client().saveNote(draft.optString("deck", store.defaultDeck()), fields,
-                            CreateView.parseTags(draft.optString("tags", "")), store.autoSync());
+                    AnkiBackend.save(getContext(), store,
+                            draft.optString("deck", store.defaultDeck()), fields,
+                            CreateView.parseTagsToArray(draft.optString("tags", "")));
                     store.removeDraft(index);
                     Th.ui(new Runnable() {
                         @Override public void run() {
@@ -782,7 +783,7 @@ public class BrowseView extends LinearLayout {
                             renderDrafts();
                         }
                     });
-                } catch (final AnkiClient.AnkiException e) {
+                } catch (final Exception e) {
                     Th.ui(new Runnable() {
                         @Override public void run() {
                             draftStatus.setText("发送失败：" + e.getMessage());
@@ -812,9 +813,10 @@ public class BrowseView extends LinearLayout {
                     JSONObject d = arr.optJSONObject(i);
                     if (d == null) continue;
                     try {
-                        client().saveNote(d.optString("deck", store.defaultDeck()),
+                        AnkiBackend.save(getContext(), store,
+                                d.optString("deck", store.defaultDeck()),
                                 d.optJSONObject("fields"),
-                                CreateView.parseTags(d.optString("tags", "")), store.autoSync());
+                                CreateView.parseTagsToArray(d.optString("tags", "")));
                         store.removeDraft(0);   // 成功一条删一条（始终删第一条，索引不漂移）
                         ok++;
                         final int done = ok;
@@ -824,7 +826,7 @@ public class BrowseView extends LinearLayout {
                                 draftStatus.setText("正在逐条发送 " + done + "/" + total + "…");
                             }
                         });
-                    } catch (AnkiClient.AnkiException e) {
+                    } catch (Exception e) {
                         lastErr = e.getMessage();
                         break;
                     }

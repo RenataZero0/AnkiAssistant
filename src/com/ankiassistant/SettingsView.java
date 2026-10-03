@@ -34,6 +34,9 @@ public class SettingsView extends LinearLayout {
     private TextView ankiStatus, aiStatus, updateStatus;
     private ProgressBar aiBusy;
     private CheckBox thinkingCheck;
+    private CheckBox deviceCheck;
+    private TextView deviceTip;
+    private Button deviceAuthBtn;
     private boolean checking;
 
     public SettingsView(MainActivity context) {
@@ -117,11 +120,35 @@ public class SettingsView extends LinearLayout {
         // ================= Anki 连接 =================
         LinearLayout anki = card();
         anki.addView(heading("Anki 连接"));
+
+        // ---- 本机写入（AnkiDroid）：不依赖电脑 ----
+        deviceCheck = new CheckBox(getContext());
+        deviceCheck.setTextColor(Ui.TEXT_BODY);
+        deviceCheck.setTextSize(14);
+        anki.addView(checkRow(deviceCheck, "优先在本机用 AnkiDroid 写入（不需要电脑）"));
+        deviceTip = new TextView(getContext());
+        deviceTip.setTextColor(Ui.TEXT_DIM);
+        deviceTip.setTextSize(12.5f);
+        deviceTip.setLineSpacing(0, 1.15f);
+        anki.addView(deviceTip);
+        deviceAuthBtn = new Button(getContext());
+        deviceAuthBtn.setText("授权 AnkiDroid");
+        Ui.secondary(deviceAuthBtn);
+        deviceAuthBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { requestAnkiDroidPermission(); }
+        });
+        LinearLayout.LayoutParams authLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        authLp.topMargin = Ui.dp(8);
+        anki.addView(deviceAuthBtn, authLp);
+
         TextView ankiTip = new TextView(getContext());
-        ankiTip.setText("填电脑的局域网 IP（电脑和本机连同一个 Wi-Fi）。Anki 要开着。");
+        ankiTip.setText("下面这几项是「电脑上的 Anki + AnkiConnect」的配置：本机 AnkiDroid 写入失败、"
+                + "或者你想让卡片直接落到电脑那份收藏库时才会用到（AnkiDroid 模式完全不需要电脑）。");
         ankiTip.setTextColor(Ui.TEXT_DIM);
         ankiTip.setTextSize(12.5f);
-        ankiTip.setPadding(0, Ui.dp(3), 0, 0);
+        ankiTip.setLineSpacing(0, 1.15f);
+        ankiTip.setPadding(0, Ui.dp(10), 0, 0);
         anki.addView(ankiTip);
 
         hostInput = input("例如 192.168.1.7", false);
@@ -358,6 +385,7 @@ public class SettingsView extends LinearLayout {
         subjectInput.setText(store.subject());
         autoSyncBox.setChecked(store.autoSync());
         if (thinkingCheck != null) thinkingCheck.setChecked(store.aiThinking());
+        refreshAnkiDroid();
         refreshProviderBtn();
     }
 
@@ -380,6 +408,7 @@ public class SettingsView extends LinearLayout {
         store.setSubject(subjectInput.getText().toString());
         store.setAutoSync(autoSyncBox.isChecked());
         if (thinkingCheck != null) store.setAiThinking(thinkingCheck.isChecked());
+        if (deviceCheck != null) store.setUseAnkiDroid(deviceCheck.isChecked());
         ankiStatus.setText("设置已保存 ✓");
         ankiStatus.setTextColor(Ui.GREEN);
         // 连接信息可能改了，侧栏那盏状态灯跟着复测一次（手机端没有灯，内部会自己忽略）
@@ -428,6 +457,54 @@ public class SettingsView extends LinearLayout {
         return row;
     }
 
+    // ------------------------------------------------------------------ 本机 AnkiDroid
+
+    /** 刷新「本机写入」那一块的勾选状态、说明文字与授权按钮 */
+    public void refreshAnkiDroid() {
+        if (deviceCheck == null) return;
+        android.content.Context c = getContext();
+        boolean installed = AnkiDroidClient.installed(c);
+        boolean granted = AnkiDroidClient.hasPermission(c);
+        boolean ready = installed && granted;
+
+        if (deviceCheck.isChecked() != store.useAnkiDroid()) {
+            deviceCheck.setChecked(store.useAnkiDroid());
+        }
+        if (deviceCheck.isEnabled() != true) deviceCheck.setEnabled(true);
+
+        String state = AnkiDroidClient.status(c);
+        String extra;
+        if (!installed) {
+            extra = "　装一个 AnkiDroid 就能让这台设备独立记卡（下方电脑那套可以完全不填）。";
+        } else if (!granted) {
+            extra = "　点下面的按钮授权后即可本机写入。";
+        } else {
+            extra = "　当前生效：本机 AnkiDroid 写入（不连电脑）。";
+        }
+        deviceTip.setText("AnkiDroid：" + state + extra
+                + (store.useAnkiDroid() ? "" : "　（开关已关，仍走电脑上的 AnkiConnect）"));
+
+        deviceAuthBtn.setVisibility(installed && !granted ? View.VISIBLE : View.GONE);
+    }
+
+    /** 申请 AnkiDroid 的读写权限（授权界面由 AnkiDroid 提供） */
+    private void requestAnkiDroidPermission() {
+        if (!AnkiDroidClient.installed(getContext())) {
+            deviceTip.setText("本机没有 AnkiDroid。想完全脱离电脑的话，先装一个 AnkiDroid（应用商店搜 AnkiDroid 即可）。");
+            return;
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            try {
+                act.requestPermissions(new String[]{AnkiDroidClient.PERMISSION},
+                        AnkiDroidClient.PERM_REQUEST);
+                deviceTip.setText("已向 AnkiDroid 申请权限 —— 请在它的授权界面上点允许。");
+            } catch (Exception e) {
+                deviceTip.setText("申请权限失败：" + e.getMessage());
+            }
+        } else {
+            deviceTip.setText("这个系统版本在安装时就已授权，应该可以直接用。");
+        }
+    }
     // ------------------------------------------------------------------ 自动更新
 
     private void updateMsg(String text, int color) {

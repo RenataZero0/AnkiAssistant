@@ -10,6 +10,35 @@
 
 ---
 
+## v1.7.0 · 2026-10-03 —— 本机写入：不再依赖电脑（走 AnkiDroid API）
+
+### 新增
+- **本机 AnkiDroid 写入**：装了 AnkiDroid 并授权后，卡片直接写进**设备上**的收藏库，
+  完全不需要电脑、不需要 AnkiConnect、不需要同一个 Wi-Fi
+  - 走 AnkiDroid 官方 ContentProvider API（`com.ichi2.anki.flashcards`，权限 `READ_WRITE_DATABASE`），
+    只用系统自带的 android/java 库，没有引入任何第三方依赖
+  - 自动建牌组（支持 `::` 层级）、自动建/复用笔记类型「专业术语卡」
+    （名字与 7 个字段都对得上才复用，不会重复建类型）
+  - 卡片格式与电脑端写入**完全一致**：同一套模板、样式、字段顺序
+- 设置 → Anki 连接 顶部新增「优先在本机用 AnkiDroid 写入（不需要电脑）」开关、
+  AnkiDroid 状态说明（未安装 / 未授权 / 已就绪）与「授权 AnkiDroid」按钮
+- 侧栏状态灯在生效本机模式时显示「**本机**」（绿色），不再去测电脑
+- 保存路径统一到 `AnkiBackend`：制卡页保存、草稿箱补发、浏览页重新保存走同一套决策
+
+### 说明（先说清楚边界）
+- **同步**：AnkiDroid 的 API 没有提供同步接口，所以本机写完要在 AnkiDroid 里同步一次才会推到 AnkiWeb
+  （打开 AnkiDroid 时通常会自己同步）。电脑端 AnkiConnect 模式仍然是"保存即 sync()"
+- **浏览/搜索**：仍然走电脑上的 Anki + AnkiConnect（AnkiDroid 的查询能力后续再接）
+- 第一次用要在 AnkiDroid 里点「开始」完成初始化（生成 collection）、允许「所有文件访问权限」，
+  之后本应用才写得进去；AnkiDroid 在设置里有状态提示，没就绪会自动回退到电脑模式
+
+### 实测（模拟器，全程不碰电脑）
+- 把电脑 IP 故意改成 `10.0.0.1`（AnkiConnect 彻底不可达）→ 制卡 → 保存 →
+  提示「已保存到本机 AnkiDroid ✓」→ AnkiDroid 里出现 `A Level Pure Mathematics`（1 张卡片待复习）
+- 卡片背面：`【音标】` `【词性】` `【定义】` `【关联公式/符号】`（MathJax 正常渲染成
+  *n₁ sin θ₁ = n₂ sin θ₂*）`【易混】`（英文词性、无短横）`【中文】` 全部正确
+
+---
 ## v1.6.2 · 2026-10-03 —— 更新弹窗高度自适应
 
 ### 修
