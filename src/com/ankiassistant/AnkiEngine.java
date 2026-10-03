@@ -81,6 +81,12 @@ public class AnkiEngine {
 
     // 后端句柄是原生指针，**可能为负**（arm64 上实测就是负数），所以只把 0 当作无效
     private long ptr = 0;
+
+    /**
+     * 同步端点。AnkiWeb 对部分账号会返回 308 重定向到别的同步节点（例如 sync2.ankiweb.net），
+     * 之后**所有**请求都必须打到新节点，否则会拿到 303/非 zstd 响应（表现为 400 missing original size）。
+     */
+    private String endpoint;
     private boolean collectionOpen;
     private String collectionPath;
 
@@ -359,29 +365,62 @@ public class AnkiEngine {
                 .setUsername(username == null ? "" : username)
                 .setPassword(password == null ? "" : password);
         if (endpoint != null && endpoint.trim().length() > 0) b.setEndpoint(endpoint.trim());
+        // 注意：登录请求也要带端点，否则又会从老节点绕一圈
         SyncAuth auth = parse(SyncAuth.parser(), call(S_SYNC, M_SYNC_LOGIN, b.build()), "登录 AnkiWeb");
         return auth.getHkey();
     }
 
     /** 需要哪种同步：0=无需同步 1=普通同步 2=需要全量同步 */
     public int syncRequired(String hkey) throws EngineException {
-        SyncStatusResponse res = parse(SyncStatusResponse.parser(), 
+        SyncStatusResponse res = parse(SyncStatusResponse.parser(),
                 call(S_SYNC, M_SYNC_STATUS, authReq(hkey)), "查询同步状态");
+        if (res.hasNewEndpoint()) rememberEndpoint(res.getNewEndpoint());
         return res.getRequired().getNumber();
     }
 
-    /** 全量上传（upload=true）或下载（false） */
-    public void fullUploadOrDownload(String hkey, boolean upload) throws EngineException {
-        call(S_SYNC, M_FULL_UPLOAD_OR_DOWNLOAD, FullUploadOrDownloadRequest.newBuilder()
-                .setAuth(auth(hkey)).setUpload(upload).build());
+    /**
+     * 全量上传（upload=true）或下载（false）。
+     *
+     * @param serverUsn 由上一次 syncCollection 的响应给出（serverMediaUsn）；不传的话 AnkiWeb 会 400
+     */
+    public void fullUploadOrDownload(String hkey, boolean upload, Integer serverUsn)
+            throws EngineException {
+        FullUploadOrDownloadRequest.Builder b = FullUploadOrDownloadRequest.newBuilder()
+                .setAuth(auth(hkey)).setUpload(upload);
+        if (serverUsn != null) b.setServerUsn(serverUsn.intValue());
+        call(S_SYNC, M_FULL_UPLOAD_OR_DOWNLOAD, b.build());
+    }
+
+    /** 同步响应里我们关心的东西 */
+    public static class SyncInfo {
+        public int required;
+        public boolean fullSyncNeeded;
+        public boolean downloadOnly;   // 云端有、本机几乎没有 → 只可能下载
+        public Integer serverUsn;
+        public String serverMessage = "";
     }
 
     /** 普通同步；返回后端给的"下一步还需要什么"（见 SyncCollectionResponse.ChangesRequired） */
     public int syncCollection(String hkey, boolean withMedia) throws EngineException {
-        SyncCollectionResponse res = parse(SyncCollectionResponse.parser(), 
+        return syncCollectionInfo(hkey, withMedia).required;
+    }
+
+    /**
+     * 跑一次普通同步并把响应翻译成 SyncInfo。
+     * 全量同步必须带上这里返回的 {@code serverUsn}（= serverMediaUsn），否则 AnkiWeb 回 400。
+     */
+    public SyncInfo syncCollectionInfo(String hkey, boolean withMedia) throws EngineException {
+        SyncCollectionResponse res = parse(SyncCollectionResponse.parser(),
                 call(S_SYNC, M_SYNC_COLLECTION, SyncCollectionRequest.newBuilder()
                         .setAuth(auth(hkey)).setSyncMedia(withMedia).build()), "同步收藏库");
-        return res.getRequired().getNumber();
+        if (res.hasNewEndpoint()) rememberEndpoint(res.getNewEndpoint());
+        SyncInfo info = new SyncInfo();
+        info.required = res.getRequired().getNumber();
+        info.fullSyncNeeded = (info.required == 2 || info.required == 3);
+        info.downloadOnly = (info.required == 3);
+        info.serverUsn = res.getServerMediaUsn();
+        info.serverMessage = res.getServerMessage();
+        return info;
     }
 
     /** 单独同步媒体文件 */
@@ -389,11 +428,27 @@ public class AnkiEngine {
         call(S_SYNC, M_SYNC_MEDIA, authReq(hkey));
     }
 
-    private static SyncAuth auth(String hkey) {
-        return SyncAuth.newBuilder().setHkey(hkey == null ? "" : hkey).build();
+    /** 记住服务器给的新端点（没有就沿用当前的） */
+    private void rememberEndpoint(String ep) {
+        if (ep != null && ep.trim().length() > 0 && !ep.trim().equals(endpoint)) {
+            endpoint = ep.trim();
+            Log.i(TAG, "同步端点已更新为 " + endpoint);
+        }
     }
 
-    private static MessageLite authReq(String hkey) { return auth(hkey); }
+    public String endpoint() { return endpoint; }
+
+    public void setEndpoint(String ep) {
+        if (ep != null && ep.trim().length() > 0) endpoint = ep.trim();
+    }
+
+    private SyncAuth auth(String hkey) {
+        SyncAuth.Builder b = SyncAuth.newBuilder().setHkey(hkey == null ? "" : hkey);
+        if (endpoint != null) b.setEndpoint(endpoint);
+        return b.build();
+    }
+
+    private MessageLite authReq(String hkey) { return auth(hkey); }
 
     // ------------------------------------------------------------ 底层收发
 

@@ -100,7 +100,7 @@ public class AnkiBackend {
     /** 同步：内置引擎走完整的登录/比对/同步流程（设置页那个按钮） */
     public static String sync(Context c, Store store) throws Exception {
         if (useEngine(c, store)) {
-            return "请在「设置 → AnkiWeb 同步」里点「登录并同步」";
+            return "点左上角头像即可登录 / 同步 AnkiWeb";
         }
         AnkiDroidClient.openApp(c);
         return "已打开 AnkiDroid —— 它在启动时会自动同步";

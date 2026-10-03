@@ -57,6 +57,7 @@ public class AnkiSync {
     public static Outcome sync(Context c, Store store, String user, String pass, Boolean fullMode)
             throws Exception {
         AnkiEngine e = EngineHolder.get(c);
+        e.setEndpoint(store.syncEndpoint());   // 上次记下的同步节点，直接用
 
         String hkey = store.ankiWebHkey();
         if (user != null && user.trim().length() > 0 && pass != null && pass.length() > 0) {
@@ -71,31 +72,31 @@ public class AnkiSync {
             store.setLastSyncAt(System.currentTimeMillis());
             return new Outcome("已是最新，无需同步 ✓", false);
         }
-        if (need == 2) {
-            // 后端说必须全量同步
-            if (fullMode == null) throw new FullSyncRequired("AnkiWeb 要求先做一次全量同步");
-            e.fullUploadOrDownload(hkey, fullMode.booleanValue());
-            String dir = fullMode.booleanValue() ? "上传本机收藏库" : "下载云端收藏库";
-            safeMediaSync(e, hkey);
+
+        // 先跑一次普通同步：既能让后端判断要不要全量，也能拿到全量同步必须带的 serverUsn
+        // （AnkiDroid 的做法：serverUsn = 上一次 syncCollection 响应里的 serverMediaUsn）
+        AnkiEngine.SyncInfo info = e.syncCollectionInfo(hkey, true);
+        store.setSyncEndpoint(e.endpoint());
+        Integer serverUsn = info.serverUsn;
+        if (!info.fullSyncNeeded) {
             store.setLastSyncAt(System.currentTimeMillis());
-            return new Outcome("全量同步完成（" + dir + "）✓", true);
+            return new Outcome(info.serverMessage.length() > 0
+                    ? ("同步完成 ✓ " + info.serverMessage)
+                    : "同步完成 ✓ 本机与 AnkiWeb 已一致（含媒体）", true);
         }
 
-        // 普通同步（顺带同步媒体）
-        int after = e.syncCollection(hkey, true);
-        if (after == 2 || after == 3) {
-            if (fullMode == null) {
-                throw new FullSyncRequired(after == 3
-                        ? "云端和本机差异过大，需要全量同步（本机还没有卡片，建议下载云端）"
-                        : "AnkiWeb 要求全量同步");
-            }
-            e.fullUploadOrDownload(hkey, fullMode.booleanValue());
-            safeMediaSync(e, hkey);
-            store.setLastSyncAt(System.currentTimeMillis());
-            return new Outcome("全量同步完成 ✓", true);
+        // 需要全量同步：方向必须由用户决定
+        if (fullMode == null) {
+            throw new FullSyncRequired(info.downloadOnly
+                    ? "云端和本机差异较大，需要全量同步（本机卡片很少，建议下载云端）"
+                    : "AnkiWeb 要求全量同步");
         }
+        e.fullUploadOrDownload(hkey, fullMode.booleanValue(), serverUsn);
+        safeMediaSync(e, hkey);
+        store.setSyncEndpoint(e.endpoint());
         store.setLastSyncAt(System.currentTimeMillis());
-        return new Outcome("同步完成 ✓ 本机与 AnkiWeb 已一致（含媒体）", true);
+        return new Outcome("全量同步完成（" + (fullMode.booleanValue() ? "上传本机" : "下载云端") + "）✓",
+                true);
     }
 
     private static void safeMediaSync(AnkiEngine e, String hkey) {

@@ -54,6 +54,9 @@ public class SettingsView extends LinearLayout {
         return l;
     }
 
+    private ScrollView scroll;
+    private LinearLayout indexBox;
+
     private TextView heading(String text) {
         TextView t = new TextView(getContext());
         t.setText(text);
@@ -102,10 +105,37 @@ public class SettingsView extends LinearLayout {
     // ------------------------------------------------------------------ 构建
 
     private void build() {
-        ScrollView scroll = new ScrollView(getContext());
+        boolean wide = getResources().getConfiguration().smallestScreenWidthDp >= 600;
+
+        // 外层：宽屏时左右分栏（左索引 / 右内容），窄屏时上下（上标签 / 下内容）
+        LinearLayout outer = new LinearLayout(getContext());
+        outer.setOrientation(wide ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
+        addView(outer, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        indexBox = new LinearLayout(getContext());
+        indexBox.setOrientation(wide ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        indexBox.setBackgroundColor(0xFFF4F7FC);
+        if (wide) {
+            indexBox.setPadding(Ui.dp(6), Ui.dp(14), Ui.dp(6), Ui.dp(10));
+            outer.addView(indexBox, new LinearLayout.LayoutParams(Ui.dp(126),
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        } else {
+            indexBox.setPadding(Ui.dp(8), Ui.dp(8), Ui.dp(8), Ui.dp(8));
+            ScrollView ix = new ScrollView(getContext());
+            ix.setHorizontalScrollBarEnabled(false);
+            ix.addView(indexBox, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            outer.addView(ix, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        }
+
+        scroll = new ScrollView(getContext());
         scroll.setVerticalScrollBarEnabled(false);
-        addView(scroll, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        outer.addView(scroll, new LinearLayout.LayoutParams(
+                wide ? 0 : ViewGroup.LayoutParams.MATCH_PARENT,
+                wide ? ViewGroup.LayoutParams.MATCH_PARENT : 0,
+                wide ? 1f : 1f));
 
         LinearLayout col = new LinearLayout(getContext());
         col.setOrientation(LinearLayout.VERTICAL);
@@ -190,6 +220,7 @@ public class SettingsView extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         aiLp.bottomMargin = Ui.dp(11);
         col.addView(ai, aiLp);
+        addIndex("AI 自动填充", ai);
 
 
         // ================= 输出格式 config =================
@@ -254,6 +285,7 @@ public class SettingsView extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         cfgCardLp.bottomMargin = Ui.dp(11);
         col.addView(cfgCard, cfgCardLp);
+        addIndex("输出格式", cfgCard);
 
         // ================= 更新内容（照 StudyCompanion 的做法，日志打包在 APK 内） =================
         LinearLayout upd = card();
@@ -315,11 +347,67 @@ public class SettingsView extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         updLp.bottomMargin = Ui.dp(11);
         col.addView(upd, updLp);
+        addIndex("更新内容", upd);
 
         loadValues();
+        attachScrollSpy();
     }
 
     // ------------------------------------------------------------------ 读写
+
+
+    // ------------------------------------------------------------------ 左侧索引
+
+    private final java.util.List<View> indexItems = new java.util.ArrayList<View>();
+    private final java.util.List<View> indexTargets = new java.util.ArrayList<View>();
+
+    private void addIndex(String title, final View target) {
+        if (indexBox == null) return;
+        final TextView item = new TextView(getContext());
+        item.setText(title);
+        item.setTextSize(13);
+        item.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        item.setPadding(Ui.dp(12), Ui.dp(11), Ui.dp(8), Ui.dp(11));
+        item.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                if (scroll != null) scroll.smoothScrollTo(0, Math.max(0, target.getTop() - Ui.dp(6)));
+                styleIndex(indexItems.indexOf(item));
+            }
+        });
+        indexItems.add(item);
+        indexTargets.add(target);
+        indexBox.addView(item, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        if (indexItems.size() == 1) styleIndex(0);
+    }
+
+    /** 只让选中的那一条是高亮蓝底 */
+    private void styleIndex(int active) {
+        for (int i = 0; i < indexItems.size(); i++) {
+            TextView t = (TextView) indexItems.get(i);
+            boolean on = (i == active);
+            t.setTextColor(on ? Ui.ACCENT : Ui.TEXT_BODY);
+            t.setTypeface(on ? android.graphics.Typeface.DEFAULT_BOLD
+                    : android.graphics.Typeface.DEFAULT);
+            t.setBackground(on ? Ui.round(0xFFFFFFFF, 9) : null);
+        }
+    }
+
+    /** 滚动时跟着高亮当前卡片 */
+    private void attachScrollSpy() {
+        if (scroll == null || indexTargets.isEmpty()) return;
+        scroll.getViewTreeObserver().addOnScrollChangedListener(
+                new android.view.ViewTreeObserver.OnScrollChangedListener() {
+            @Override public void onScrollChanged() {
+                int y = scroll.getScrollY() + Ui.dp(40);
+                int active = 0;
+                for (int i = 0; i < indexTargets.size(); i++) {
+                    if (indexTargets.get(i).getTop() <= y) active = i;
+                }
+                styleIndex(active);
+            }
+        });
+    }
 
     private void loadValues() {
         aiKeyInput.setText(store.aiApiKey());

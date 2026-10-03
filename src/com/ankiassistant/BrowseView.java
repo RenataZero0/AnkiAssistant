@@ -634,8 +634,7 @@ public class BrowseView extends LinearLayout {
     }
 
     private void doSync() {
-        final boolean dev = AnkiBackend.useDevice(getContext(), store);
-        cloudStatus.setText(dev ? "本机模式：同步要在 AnkiDroid 里做，正在打开它…" : "正在同步到 AnkiWeb…");
+        cloudStatus.setText("正在同步到 AnkiWeb…");
         cloudStatus.setTextColor(Ui.SUB);
         Th.bg(new Runnable() {
             @Override
@@ -645,7 +644,7 @@ public class BrowseView extends LinearLayout {
                     Th.ui(new Runnable() {
                         @Override public void run() {
                             cloudStatus.setText(sm);
-                            cloudStatus.setTextColor(dev ? Ui.AMBER : Ui.GREEN);
+                            cloudStatus.setTextColor(Ui.GREEN);
                         }
                     });
                 } catch (final Exception e) {

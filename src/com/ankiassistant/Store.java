@@ -42,9 +42,10 @@ public class Store {
     // ------------------------------------------------------------ 输出格式 config
 
     /** 所有 config（永远包含内置默认那条） */
+    /** 所有格式：内置三个（不可改）+ 用户自建的 */
     public java.util.List<CardConfig> configs() {
-        CardConfig builtin = CardConfig.defaultConfig();
-        java.util.List<CardConfig> custom = new java.util.ArrayList<CardConfig>();
+        java.util.List<CardConfig> out = new java.util.ArrayList<CardConfig>();
+        out.addAll(CardConfig.builtins());
         try {
             org.json.JSONArray arr = new org.json.JSONArray(sp.getString("configs", "[]"));
             for (int i = 0; i < arr.length(); i++) {
@@ -52,24 +53,23 @@ public class Store {
                 if (o == null) continue;
                 CardConfig c = CardConfig.fromJson(o);
                 if (c.id == null || c.id.length() == 0) continue;
-                if (CardConfig.BUILTIN_ID.equals(c.id)) {
-                    // 用户改过内置那套（字段/提示词/默认值） → 用改过的版本
-                    builtin = c;
-                    builtin.builtin = true;
-                    continue;
-                }
-                custom.add(c);
+                if (isBuiltinId(c.id)) continue;   // 内置的那几个不从这里来
+                out.add(c);
             }
         } catch (Exception ignored) { }
-        java.util.List<CardConfig> out = new java.util.ArrayList<CardConfig>();
-        out.add(builtin);
-        out.addAll(custom);
         return out;
+    }
+
+    private static boolean isBuiltinId(String id) {
+        for (CardConfig c : CardConfig.builtins()) {
+            if (c.id.equals(id)) return true;
+        }
+        return false;
     }
 
     /** 当前选中的 config（找不到就回落内置默认） */
     public CardConfig activeConfig() {
-        String id = sp.getString("activeConfigId", CardConfig.BUILTIN_ID);
+        String id = sp.getString("activeConfigId", CardConfig.ID_ENGLISH);
         for (CardConfig c : configs()) {
             if (c.id.equals(id)) return c;
         }
@@ -77,16 +77,17 @@ public class Store {
     }
 
     public void setActiveConfigId(String id) {
-        put("activeConfigId", id == null ? CardConfig.BUILTIN_ID : id);
+        put("activeConfigId", id == null ? CardConfig.ID_ENGLISH : id);
     }
 
-    /** 新增或更新一条 config（内置那条也能改，改动会存下来覆盖出厂默认） */
+    /** 新增或更新一条自定义格式（内置三个不允许改） */
     public void saveConfig(CardConfig c) {
         if (c == null || c.id == null || c.id.length() == 0) return;
+        if (isBuiltinId(c.id)) return;
         org.json.JSONArray arr = new org.json.JSONArray();
         boolean replaced = false;
         for (CardConfig x : configs()) {
-            if (CardConfig.BUILTIN_ID.equals(x.id) && !CardConfig.BUILTIN_ID.equals(c.id)) continue;
+            if (isBuiltinId(x.id)) continue;
             if (x.id.equals(c.id)) { arr.put(c.toJson()); replaced = true; }
             else arr.put(x.toJson());
         }
@@ -94,17 +95,16 @@ public class Store {
         put("configs", arr.toString());
     }
 
-    /** 删除自定义 config；对内置那条等价于"恢复出厂默认" */
+    /** 删除自定义格式（内置三个不能删） */
     public void deleteConfig(String id) {
-        if (id == null) return;
+        if (id == null || isBuiltinId(id)) return;
         org.json.JSONArray arr = new org.json.JSONArray();
         for (CardConfig x : configs()) {
-            if (x.id.equals(id)) continue;
-            if (CardConfig.BUILTIN_ID.equals(x.id)) continue;   // 内置那条不写回文件就等于恢复出厂
+            if (isBuiltinId(x.id) || x.id.equals(id)) continue;
             arr.put(x.toJson());
         }
         put("configs", arr.toString());
-        if (id.equals(sp.getString("activeConfigId", ""))) setActiveConfigId(CardConfig.BUILTIN_ID);
+        if (id.equals(sp.getString("activeConfigId", ""))) setActiveConfigId(CardConfig.ID_ENGLISH);
     }
     /** AnkiWeb 账号（只存邮箱；密码不落盘，登录后只保留后端签发的 hkey） */
     public String ankiWebUser() { return sp.getString("ankiWebUser", ""); }
@@ -113,6 +113,13 @@ public class Store {
     /** AnkiWeb 登录凭证（hkey，由后端签发；过期后需要重新输密码登录） */
     public String ankiWebHkey() { return sp.getString("ankiWebHkey", ""); }
     public void setAnkiWebHkey(String v) { put("ankiWebHkey", v == null ? "" : v.trim()); }
+
+    /**
+     * 同步端点。AnkiWeb 会把部分账号迁到别的同步节点（例如 sync2.ankiweb.net），
+     * 记下来就不用每次从老节点再跳一次。
+     */
+    public String syncEndpoint() { return sp.getString("syncEndpoint", ""); }
+    public void setSyncEndpoint(String v) { put("syncEndpoint", v == null ? "" : v.trim()); }
 
     /** 上次同步成功的时间（毫秒，0 = 从未） */
     public long lastSyncAt() { return sp.getLong("lastSyncAt", 0L); }

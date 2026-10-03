@@ -57,13 +57,53 @@ public class CardConfig {
     public String defaultTags = "";
     public String subject = "";
 
-    // ------------------------------------------------------------ 内置默认
 
-    /** 默认 config：A Level / NCUK IFY 数学物理术语卡（与项目一开始的格式一致） */
-    public static CardConfig defaultConfig() {
+    // ------------------------------------------------------------ 三个内置格式（都不可修改）
+
+    /** 内置格式 id */
+    public static final String ID_ENGLISH = "default";   // 英语格式（默认）
+    public static final String ID_ALEVEL = "alevel";      // A Level Maths / Phy
+    public static final String ID_VOCAB = "vocab";        // 英语词汇
+
+    /** A Level 那套是否用应用级默认值（是：它沿用原来的默认牌组/标签/学科背景） */
+    public static boolean usesAppDefaults(String id) {
+        return ID_ALEVEL.equals(id);
+    }
+
+    /** 全部内置格式，**顺序就是界面里的顺序**（英语格式在最上面） */
+    public static List<CardConfig> builtins() {
+        List<CardConfig> out = new ArrayList<CardConfig>();
+        out.add(englishConfig());
+        out.add(alevelConfig());
+        out.add(vocabConfig());
+        return out;
+    }
+
+    /** 英语格式：最通用的一套（默认使用） */
+    public static CardConfig englishConfig() {
         CardConfig c = new CardConfig();
-        c.id = BUILTIN_ID;
-        c.name = "英语词汇";
+        c.id = ID_ENGLISH;
+        c.name = "英语格式";
+        c.noteType = "英语格式卡";
+        c.builtin = true;
+        c.fields.add(new Field("单词", "", "", false));
+        c.fields.add(new Field("音标", "phonetic", "英 /…/；美 /…/", false));
+        c.fields.add(new Field("词性", "pos", "n / v / adj（多个用 / 连接）", false));
+        c.fields.add(new Field("释义", "definition", "英文释义", false));
+        c.fields.add(new Field("例句", "example", "一句包含该词的英文例句", false));
+        c.fields.add(new Field("中文", "chinese", "中文释义，多个用「；」分隔", false));
+        c.defaultDeck = "英语词汇";
+        c.defaultTags = "English::Vocab";
+        c.subject = "通用英语（日常与学术都适用）";
+        c.prompt = ENGLISH_PROMPT;
+        return c;
+    }
+
+    /** A Level Maths / Phy：原来的七字段术语卡（默认值沿用应用级设置） */
+    public static CardConfig alevelConfig() {
+        CardConfig c = new CardConfig();
+        c.id = ID_ALEVEL;
+        c.name = "A Level Maths / Phy";
         c.noteType = "专业术语卡";
         c.builtin = true;
         c.fields.add(new Field("单词", "", "", false));
@@ -73,8 +113,66 @@ public class CardConfig {
         c.fields.add(new Field("关联公式/符号", "formula", "行内 MathJax，写成 \\( … \\)", true));
         c.fields.add(new Field("易混", "confusables", "每行一个：词 /音标/ 词性 中文释义", false));
         c.fields.add(new Field("中文", "chinese", "多个义项用「；」分隔", false));
+        // defaultDeck / defaultTags / subject 留空 → 用应用级默认值（与升级前行为一致）
         c.prompt = DEFAULT_PROMPT;
         return c;
+    }
+
+    /** 英语词汇：轻量记忆卡（词 + 音标 + 中文 + 例句） */
+    public static CardConfig vocabConfig() {
+        CardConfig c = new CardConfig();
+        c.id = ID_VOCAB;
+        c.name = "英语词汇";
+        c.noteType = "英语词汇卡";
+        c.builtin = true;
+        c.fields.add(new Field("单词", "", "", false));
+        c.fields.add(new Field("音标", "phonetic", "英 /…/；美 /…/", false));
+        c.fields.add(new Field("中文", "chinese", "中文释义", false));
+        c.fields.add(new Field("例句", "example", "一句包含该词的英文例句", false));
+        c.defaultDeck = "英语词汇";
+        c.defaultTags = "English::Vocab";
+        c.subject = "通用英语（日常与学术都适用）";
+        c.prompt = VOCAB_PROMPT;
+        return c;
+    }
+
+    /** 英语格式的提示词（通用） */
+    public static final String ENGLISH_PROMPT =
+            "请为「{word}」生成一张英语词卡。\n"
+            + "学科背景：{subject}。\n"
+            + "\n"
+            + "只输出一个 JSON 对象，字段如下（值都是字符串，不要用 markdown）：\n"
+            + "phonetic：音标，英式与美式都给，写成 英 /.../；美 /.../ ；只有一种读音时两边写一样。\n"
+            + "pos：词性缩写，多个用 / 连接（n / v / adj / adv 等），不要加点号。\n"
+            + "definition：英文释义，简洁准确；有多个义项时用 ; 分隔。\n"
+            + "example：一个完整、地道的英文例句，必须真的包含这个词；句尾加句号。\n"
+            + "chinese：中文释义，多个义项用「；」分隔。\n"
+            + "\n"
+            + "示例：\n"
+            + "{\"phonetic\":\"英 /ˈkæmbrɪdʒ/；美 /ˈkeɪmbrɪdʒ/\",\"pos\":\"n\","
+            + "\"definition\":\"a city in eastern England, famous for its university\","
+            + "\"example\":\"She studied mathematics at Cambridge.\","
+            + "\"chinese\":\"剑桥（英国城市）；剑桥大学\"}";
+
+    /** 英语词汇的提示词（更短，只要词义与例句） */
+    public static final String VOCAB_PROMPT =
+            "请为「{word}」生成一张英语词汇卡。\n"
+            + "学科背景：{subject}。\n"
+            + "\n"
+            + "只输出一个 JSON 对象，字段如下（值都是字符串，不要用 markdown）：\n"
+            + "phonetic：音标，英式与美式都给（英 /.../；美 /.../）。\n"
+            + "chinese：中文释义，简洁，多个义项用「；」分隔。\n"
+            + "example：一个完整、地道的英文例句，必须包含这个词；句尾加句号。\n"
+            + "\n"
+            + "示例：\n"
+            + "{\"phonetic\":\"英 /ˈæpl/；美 /ˈæpl/\",\"chinese\":\"苹果\","
+            + "\"example\":\"He ate an apple for breakfast.\"}";
+
+    // ------------------------------------------------------------ 内置默认
+
+    /** 默认格式 = 第一个内置格式（英语格式） */
+    public static CardConfig defaultConfig() {
+        return englishConfig();
     }
 
     /** 默认提示词：与用户 Anki 里已有卡片一致（英/美音标、([词性]) 释义、行内 MathJax、≠ 易混） */

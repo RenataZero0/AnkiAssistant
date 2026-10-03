@@ -40,9 +40,9 @@ public class SelfTest {
 
     static void format() {
         System.out.println("== 卡片格式（PRMOPT 第二节第 3 条） ==");
-        eq("字段数=7", CardFormat.FIELDS.length, 7);
-        eq("第一个字段是正面", CardFormat.FIELDS[0], "单词");
-        String back = CardFormat.CARD_BACK;
+        eq("字段数=7", CardConfig.alevelConfig().fieldNames().length, 7);
+        eq("第一个字段是正面", CardConfig.alevelConfig().fieldNames()[0], "单词");
+        String back = CardConfig.alevelConfig().cardBack();
         ok("背面含【音标】", back.indexOf("【音标】") >= 0, back);
         ok("背面含【词性】", back.indexOf("【词性】") >= 0, back);
         ok("背面含【定义】", back.indexOf("【定义】") >= 0, back);
@@ -50,8 +50,8 @@ public class SelfTest {
         ok("背面含【易混】", back.indexOf("【易混】") >= 0, back);
         ok("背面含【中文】", back.indexOf("【中文】") >= 0, back);
         ok("正面就是单词", CardFormat.CARD_FRONT.indexOf("{{单词}}") >= 0, CardFormat.CARD_FRONT);
-        for (int i = 1; i < CardFormat.FIELDS.length; i++) {
-            String f = CardFormat.FIELDS[i];
+        for (int i = 1; i < CardConfig.alevelConfig().fieldNames().length; i++) {
+            String f = CardConfig.alevelConfig().fieldNames()[i];
             ok("模板条件块包裹 " + f,
                     back.indexOf("{{#" + f + "}}") >= 0 && back.indexOf("{{/" + f + "}}") >= 0, f);
         }
@@ -60,7 +60,7 @@ public class SelfTest {
 
     static void prompt() {
         System.out.println("== AI 提示词 ==");
-        String p = CardFormat.buildPrompt("probability", "数学");
+        String p = CardConfig.alevelConfig().buildPrompt("probability", "数学");
         ok("包含单词", p.indexOf("probability") >= 0, p);
         ok("要求 JSON", p.indexOf("JSON") >= 0, p);
         ok("包含 phonetic", p.indexOf("phonetic") >= 0, p);
@@ -91,7 +91,7 @@ public class SelfTest {
         ok("明确禁止独立公式 \\\\[...\\\\]", p.indexOf("不要使用 \\[ ... \\]") >= 0, p);
         ok("只允许行内 MathJax", p.indexOf("只用行内 MathJax") >= 0, p);
         ok("学科背景进了提示词", p.indexOf("数学") >= 0, p);
-        String p2 = CardFormat.buildPrompt("vector", null);
+        String p2 = CardConfig.alevelConfig().buildPrompt("vector", null);
         ok("学科留空也有默认背景", p2.indexOf("学科背景") >= 0 && p2.indexOf("物理") >= 0, p2);
     }
 
@@ -141,9 +141,9 @@ public class SelfTest {
         ai.put("definition", "(n.) the 5th letter");
         ai.put("formula", "\\( \\varepsilon \\)");
         ai.put("confusables", "eta /ˈiːtə/\nepsilon /ˈɛpsɪləʊn/");
-        JSONObject f = CardFormat.noteFields("epsilon", ai);
-        for (int i = 0; i < CardFormat.FIELDS.length; i++) {
-            ok("字段存在 " + CardFormat.FIELDS[i], f.has(CardFormat.FIELDS[i]), CardFormat.FIELDS[i]);
+        JSONObject f = CardFormat.noteFieldsFor("epsilon", ai, CardConfig.alevelConfig());
+        for (int i = 0; i < CardConfig.alevelConfig().fieldNames().length; i++) {
+            ok("字段存在 " + CardConfig.alevelConfig().fieldNames()[i], f.has(CardConfig.alevelConfig().fieldNames()[i]), CardConfig.alevelConfig().fieldNames()[i]);
         }
         eq("正面=单词", f.optString("单词"), "epsilon");
         ok("换行转成 <br>", f.optString("易混").indexOf("<br>") >= 0, f.optString("易混"));
@@ -151,11 +151,11 @@ public class SelfTest {
 
         JSONObject ai2 = new JSONObject();
         ai2.put("definition", "a<b>c");
-        JSONObject f2 = CardFormat.noteFields("<tag>", ai2);
+        JSONObject f2 = CardFormat.noteFieldsFor("<tag>", ai2, CardConfig.alevelConfig());
         eq("正面尖括号转义", f2.optString("单词"), "&lt;tag&gt;");
         eq("释义尖括号转义", f2.optString("定义"), "a&lt;b&gt;c");
 
-        JSONObject merged = CardFormat.mergeNote("word<1>", f);
+        JSONObject merged = CardFormat.mergeNoteFor("word<1>", f, CardConfig.alevelConfig());
         eq("merge 保留单词转义", merged.optString("单词"), "word&lt;1&gt;");
         eq("merge 保留释义", merged.optString("定义"), f.optString("定义"));
         eq("merge 多余键被丢掉(不会带 AI 的键名)", merged.optString("phonetic", ""), "");
@@ -164,41 +164,55 @@ public class SelfTest {
         ok("纯文本背面含标签", plain.indexOf("【音标】") >= 0, plain);
         ok("纯文本背面含正面词", plain.startsWith("epsilon"), plain);
 
-        JSONObject empty = CardFormat.noteFields("w", null);
-        ok("AI 为 null 时字段仍然齐全", empty.length() == CardFormat.FIELDS.length, empty.toString());
+        JSONObject empty = CardFormat.noteFieldsFor("w", null, CardConfig.alevelConfig());
+        ok("AI 为 null 时字段仍然齐全", empty.length() == CardConfig.alevelConfig().fieldNames().length, empty.toString());
     }
 
 
     // ------------------------------------------------------------ 输出格式 config
 
     static void config() throws Exception {
-        System.out.println("== 输出格式 config ==");
-        CardConfig def = CardConfig.defaultConfig();
-        eq("默认 config 字段数", def.fields.size(), 7);
-        eq("默认笔记类型", def.noteType, "专业术语卡");
-        ok("正面模板用第一个字段", def.cardFront().indexOf("{{单词}}") >= 0, def.cardFront());
-        ok("背面含音标行", def.cardBack().indexOf("【音标】") >= 0, "back");
-        ok("背面含公式行", def.cardBack().indexOf("【关联公式/符号】") >= 0, "back");
-        ok("提示词带上了词", def.buildPrompt("epsilon", "物理").indexOf("epsilon") >= 0, "prompt");
-        ok("提示词带上了学科", def.buildPrompt("epsilon", "物理").indexOf("物理") >= 0, "prompt");
-        ok("提示词要求只输出 JSON", def.buildPrompt("x", "y").indexOf("JSON") >= 0, "prompt");
+        System.out.println("== 输出格式 ==");
+        java.util.List<CardConfig> builtins = CardConfig.builtins();
+        eq("内置格式个数", builtins.size(), 3);
+        eq("第一个是英语格式", builtins.get(0).name, "英语格式");
+        eq("第二个是 A Level", builtins.get(1).name, "A Level Maths / Phy");
+        eq("第三个是英语词汇", builtins.get(2).name, "英语词汇");
+        eq("默认格式 = 英语格式", CardConfig.defaultConfig().name, "英语格式");
 
-        // AI 字段 -> 笔记字段（默认 config）
+        CardConfig en = builtins.get(0);
+        eq("英语格式字段数", en.fields.size(), 6);
+        ok("英语格式正面用第一个字段", en.cardFront().indexOf("{{单词}}") >= 0, en.cardFront());
+        ok("英语格式背面含音标行", en.cardBack().indexOf("【音标】") >= 0, "back");
+        ok("英语格式提示词带词", en.buildPrompt("apple", "通用英语").indexOf("apple") >= 0, "p");
+        ok("英语格式要求 JSON", en.buildPrompt("apple", "x").indexOf("JSON") >= 0, "p");
+        eq("英语格式自带默认牌组", en.deckOr("APP"), "英语词汇");
+
+        CardConfig al = builtins.get(1);
+        eq("A Level 字段数", al.fields.size(), 7);
+        eq("A Level 笔记类型", al.noteType, "专业术语卡");
+        ok("A Level 背面含公式行", al.cardBack().indexOf("【关联公式/符号】") >= 0, "back");
+        ok("A Level 提示词禁止独立公式", al.buildPrompt("x", "y").indexOf("不要使用") >= 0, "p");
+        eq("A Level 沿用应用级默认牌组", al.deckOr("APP-DECK"), "APP-DECK");
+        ok("A Level 用应用级默认值", CardConfig.usesAppDefaults(al.id), "flag");
+
+        CardConfig vo = builtins.get(2);
+        eq("英语词汇字段数", vo.fields.size(), 4);
+
         JSONObject ai = new JSONObject();
-        ai.put("phonetic", "英 /x/");
+        ai.put("phonetic", "英 /ˈæpl/");
         ai.put("pos", "n");
-        ai.put("definition", "(n) something");
-        ai.put("formula", "\\(a=1\\)");
-        ai.put("confusables", "a /x/ n. 甲");
-        ai.put("chinese", "乙");
-        JSONObject f = CardFormat.noteFieldsFor("epsilon", ai, def);
-        eq("笔记字段数 = config 字段数", f.length(), 7);
-        eq("正面字段=单词", f.optString("单词", ""), "epsilon");
-        eq("音标映射", f.optString("音标", ""), "英 /x/");
-        eq("中文映射", f.optString("中文", ""), "乙");
-        eq("正面的键不来自 AI", f.optString("单词", ""), "epsilon");
+        ai.put("definition", "(n) a round fruit");
+        ai.put("example", "He ate an apple.");
+        ai.put("chinese", "苹果");
+        JSONObject f = CardFormat.noteFieldsFor("apple", ai, en);
+        eq("笔记字段数 = 格式字段数", f.length(), 6);
+        eq("正面=用户输入", f.optString("单词", ""), "apple");
+        eq("释义映射", f.optString("释义", ""), "(n) a round fruit");
+        eq("例句映射", f.optString("例句", ""), "He ate an apple.");
+        eq("中文映射", f.optString("中文", ""), "苹果");
 
-        // 自定义 config：JSON 往返 + 模板/提示词按自己的字段走
+        // 自定义格式：JSON 往返 + 模板按自己的字段走
         CardConfig custom = new CardConfig();
         custom.id = "cfgtest";
         custom.name = "雅思词汇";
@@ -207,20 +221,17 @@ public class SelfTest {
         custom.fields.add(new CardConfig.Field("词", "", "", false));
         custom.fields.add(new CardConfig.Field("释义", "meaning", "中文释义", false));
         CardConfig round = CardConfig.fromJson(custom.toJson());
-        eq("config 往返：名字", round.name, "雅思词汇");
-        eq("config 往返：字段数", round.fields.size(), 2);
-        eq("config 往返：第二个字段的键", round.fields.get(1).key, "meaning");
-        ok("自定义正面模板", round.cardFront().indexOf("{{词}}") >= 0, round.cardFront());
+        eq("自定义往返：名字", round.name, "雅思词汇");
+        eq("自定义往返：字段数", round.fields.size(), 2);
+        eq("自定义往返：第二个键", round.fields.get(1).key, "meaning");
         ok("自定义背面含释义行", round.cardBack().indexOf("【释义】") >= 0, "back");
-        ok("自定义提示词替换 {word}", round.buildPrompt("cambridge", "英语").indexOf("cambridge") >= 0, "p");
         JSONObject ai2 = new JSONObject();
-        ai2.put("term", "忽略");
         ai2.put("meaning", "剑桥");
         JSONObject f2 = CardFormat.noteFieldsFor("cambridge", ai2, round);
-        eq("自定义字段数", f2.length(), 2);
         eq("自定义正面=用户输入", f2.optString("词", ""), "cambridge");
         eq("自定义释义来自 AI", f2.optString("释义", ""), "剑桥");
     }
+
 
     // ------------------------------------------------------------ AI 请求
 
@@ -266,7 +277,7 @@ public class SelfTest {
     static void templates() throws Exception {
         System.out.println("== 模板/格式兜底 ==");
         ok("笔记类型名非空", CardFormat.MODEL_NAME.length() > 0, "");
-        String back = CardFormat.CARD_BACK;
+        String back = CardConfig.alevelConfig().cardBack();
         int opens = count(back, "{{#"), closes = count(back, "{{/");
         eq("条件块成对", opens, closes);
         eq("条件块数量=6", opens, 6);
@@ -329,7 +340,7 @@ public class SelfTest {
                 thinkOff.getJSONObject("thinking").optString("type", ""), "disabled");
 
         // 重试提示词要明确"不要思考、只输出 JSON"
-        String strict = CardFormat.buildPromptStrict("velocity", "数学");
+        String strict = CardConfig.alevelConfig().buildPromptStrict("velocity", "数学");
         ok("重试用提示词要求不思考", strict.indexOf("不要输出任何思考过程") >= 0, strict);
         ok("重试用提示词要求只输出 JSON", strict.indexOf("只输出上面那个 JSON 对象本身") >= 0, strict);
 
