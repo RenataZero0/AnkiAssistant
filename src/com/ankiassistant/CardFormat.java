@@ -25,20 +25,17 @@ import org.json.JSONObject;
  */
 public class CardFormat {
 
-    public static final String MODEL_NAME = "专业术语卡";
+    public static final String MODEL_NAME = CardConfig.defaultConfig().noteType;
 
     /** 笔段顺序（也是背面从上到下的顺序）。中文行是参考用户现有卡片补的，可留空 */
-    public static final String[] FIELDS = {
-            "单词", "音标", "词性", "定义", "关联公式/符号", "易混", "中文"
-    };
+    public static final String[] FIELDS = CardConfig.defaultConfig().fieldNames();
 
     public static final String SYSTEM =
             "你是资深的英汉词典编辑，同时熟悉 CIE A-Level / NCUK IFY 的数学与物理术语。"
             + "你只输出一个 JSON 对象，不输出任何解释、注释或 Markdown 代码块。";
 
     /** 卡片正面模板 */
-    public static final String CARD_FRONT =
-            "<div class=\"word\">{{单词}}</div>";
+    public static final String CARD_FRONT = CardConfig.defaultConfig().cardFront();
 
     /**
      * 按牌组自动带出的标签：数学类四个牌组 → ALevel::Maths，物理 → ALevel::Physics。
@@ -58,18 +55,8 @@ public class CardFormat {
         return null;
     }
 
-    /** 卡片背面模板 —— 用 {{#字段}} 条件块，空字段连标签一起隐藏 */
-    public static final String CARD_BACK =
-            "<div class=\"word\">{{单词}}</div>\n"
-            + "<hr id=\"answer\">\n"
-            + "<div class=\"body\">\n"
-            + "{{#音标}}<div class=\"row\"><span class=\"lbl\">【音标】</span><span class=\"val\">{{音标}}</span></div>{{/音标}}\n"
-            + "{{#词性}}<div class=\"row\"><span class=\"lbl\">【词性】</span><span class=\"val\">{{词性}}</span></div>{{/词性}}\n"
-            + "{{#定义}}<div class=\"row\"><span class=\"lbl\">【定义】</span><span class=\"val\">{{定义}}</span></div>{{/定义}}\n"
-            + "{{#关联公式/符号}}<div class=\"row\"><span class=\"lbl\">【关联公式/符号】</span><span class=\"val\">{{关联公式/符号}}</span></div>{{/关联公式/符号}}\n"
-            + "{{#易混}}<div class=\"row\"><span class=\"lbl\">【易混】</span><span class=\"val\">{{易混}}</span></div>{{/易混}}\n"
-            + "{{#中文}}<div class=\"row\"><span class=\"lbl\">【中文】</span><span class=\"val\">{{中文}}</span></div>{{/中文}}\n"
-            + "</div>";
+    /** 卡片背面模板（默认 config）：每个字段一行，空字段连标签一起隐藏 */
+    public static final String CARD_BACK = CardConfig.defaultConfig().cardBack();
 
     /** 模板样式（写进笔记类型，桌面端渲染用的是同一段 CSS） */
     public static final String CARD_CSS =
@@ -85,38 +72,9 @@ public class CardFormat {
 
     // ---------------------------------------------------------------- 提示词
 
-    /** 用户提示词：格式要求与用户 Anki 里已有卡片保持一致（行内 MathJax、英/美音标、≠ 易混、中文行） */
+    /** 用户提示词（默认 config 的版本；多格式请用 CardConfig.buildPrompt） */
     public static String buildPrompt(String word, String subject) {
-        String subj = (subject == null || subject.trim().length() == 0)
-                ? "数学、物理学科术语（若是学科术语请给出精确定义）" : subject.trim();
-        return "请为单词「" + word.trim() + "」生成一张词卡。\n"
-                + "学科背景：" + subj + "。\n"
-                + "\n"
-                + "只输出一个 JSON 对象，字段如下（值都是字符串，不要用 markdown）：\n"
-                + "phonetic：音标，英式与美式都给，写成 英 /.../；美 /.../ ；"
-                + "只有一种读音时，英式与美式写同一个音标。\n"
-                + "pos：词性缩写，多个用 / 连接，例如 adj/n、v、n，不要加点号。\n"
-                + "definition：英文释义。严格按这个格式：([词性]) 英文释义; ([词性]) 另一个释义\n"
-                + "        例如：(adj) relating to the second power of a variable; (n) a quadratic polynomial of degree 2\n"
-                + "        若是数学/物理术语，用英文给出教材级别的精确定义。\n"
-                + "formula：与该词相关的公式或符号表示。**只用行内 MathJax \\( ... \\)**，"
-                + "不要使用 \\[ ... \\] 这种独立成行的公式；同一行多个式子用 \\quad 或逗号分隔。\n"
-                + "        例：\\(ax^2+bx+c=0,\\ a\\neq 0\\)、\\(\\dfrac{a}{b}\\)。没有相关公式就留空字符串。\n"
-                + "confusables：2-3 个读音或意义相近、容易混淆的词，每个写成一行，格式固定为：\n"
-                + "        词 /音标/ 词性缩写 中文释义\n"
-                + "        词性一律用英文缩写（n. / v. / adj. / adv. / prep. 等），"
-                + "并且**不要用破折号或连字符**把词和释义连起来。\n"
-                + "        例：speed /spiːd/ n. 速率，标量，无方向\n"
-                + "        例：accelerate /əkˈseləreɪt/ v. 加速\n"
-                + "chinese：该词（或该术语）的中文释义，多个用「；」分隔。\n"
-                + "\n"
-                + "输出示例（注意：confusables 每行是「词 /音标/ 词性 中文释义」，没有破折号）：\n"
-                + "{\"phonetic\":\"英 /æbˈsɪsə/；美 /æbˈsɪsə/\",\"pos\":\"n\","
-                + "\"definition\":\"(n) the horizontal coordinate of a point in a coordinate system\","
-                + "\"formula\":\"\\\\(x\\\\neq 0,\\\\ y=0\\\\)\","
-                + "\"confusables\":\"ordinate /ˈɔːdɪnət/ n. 纵坐标，竖直方向的坐标\\n"
-                + "coordinate /kəʊˈɔːdɪnət/ n. 坐标，用来定位的一对数值\","
-                + "\"chinese\":\"横坐标\"}";
+        return CardConfig.defaultConfig().buildPrompt(word, subject);
     }
 
     /**
@@ -125,9 +83,7 @@ public class CardFormat {
      * 这里明确要求不要思考、不要解释。
      */
     public static String buildPromptStrict(String word, String subject) {
-        return buildPrompt(word, subject)
-                + "\n\n重要：不要输出任何思考过程、解释或 Markdown 代码块，"
-                + "只输出上面那个 JSON 对象本身，且必须是可以直接解析的完整 JSON。";
+        return CardConfig.defaultConfig().buildPromptStrict(word, subject);
     }
 
     // ------------------------------------------------------------ AI 返回解析
@@ -303,19 +259,47 @@ public class CardFormat {
      * 新行转成 &lt;br&gt;，尖括号转义，防止 AI 输出的 HTML 破坏卡片。
      */
     public static JSONObject noteFields(String word, JSONObject ai) {
+        return noteFieldsFor(word, ai, CardConfig.defaultConfig());
+    }
+
+    // ------------------------------------------------------- config 版本（多格式）
+
+    /** 按指定 config 把 AI 结果组装成笔记字段（键名 = 该 config 的字段名） */
+    public static JSONObject noteFieldsFor(String word, JSONObject ai, CardConfig cfg) {
         JSONObject f = new JSONObject();
+        if (cfg == null) cfg = CardConfig.defaultConfig();
         try {
-            f.put("单词", escape(word == null ? "" : word.trim()));
-            f.put("音标", nl(ai == null ? "" : ai.optString("phonetic", "")));
-            f.put("词性", nl(ai == null ? "" : ai.optString("pos", "")));
-            f.put("定义", nl(ai == null ? "" : ai.optString("definition", "")));
-            f.put("关联公式/符号", nl(normalizeFormula(ai == null ? "" : ai.optString("formula", ""))));
-            f.put("易混", nl(ai == null ? "" : ai.optString("confusables", "")));
-            f.put("中文", nl(ai == null ? "" : ai.optString("chinese", "")));
+            for (int i = 0; i < cfg.fields.size(); i++) {
+                CardConfig.Field fd = cfg.fields.get(i);
+                if (i == 0) {   // 第一个字段是正面：用户输入的词
+                    f.put(fd.name, escape(word == null ? "" : word.trim()));
+                    continue;
+                }
+                String v = ai == null ? "" : ai.optString(fd.key, "");
+                f.put(fd.name, nl(fd.latex ? normalizeFormula(v) : v));
+            }
         } catch (JSONException ignored) { }
         return f;
     }
 
+    /** 按 config 合并（编辑器里用户改过的背面字段为准） */
+    public static JSONObject mergeNoteFor(String word, JSONObject back, CardConfig cfg) {
+        JSONObject f = new JSONObject();
+        if (cfg == null) cfg = CardConfig.defaultConfig();
+        try {
+            for (int i = 0; i < cfg.fields.size(); i++) {
+                String name = cfg.fields.get(i).name;
+                if (i == 0) f.put(name, escape(word == null ? "" : word.trim()));
+                else f.put(name, back == null ? "" : back.optString(name, ""));
+            }
+        } catch (JSONException ignored) { }
+        return f;
+    }
+
+    /** 按 config 生成一张空白卡（手工填充用） */
+    public static JSONObject emptyFieldsFor(String word, CardConfig cfg) {
+        return noteFieldsFor(word, null, cfg);
+    }
     /** 供「手工填充」使用的空字段 */
     public static JSONObject emptyFields(String word) {
         return noteFields(word, null);
@@ -326,15 +310,7 @@ public class CardFormat {
      * 编辑器里的内容是用户手动改过的，以它为准（覆盖 AI 的原始输出）。
      */
     public static JSONObject mergeNote(String word, JSONObject back) {
-        JSONObject f = new JSONObject();
-        try {
-            f.put("单词", escape(word == null ? "" : word.trim()));
-            for (int i = 1; i < FIELDS.length; i++) {
-                String name = FIELDS[i];
-                f.put(name, back == null ? "" : back.optString(name, ""));
-            }
-        } catch (JSONException ignored) { }
-        return f;
+        return mergeNoteFor(word, back, CardConfig.defaultConfig());
     }
 
     public static String escape(String s) {

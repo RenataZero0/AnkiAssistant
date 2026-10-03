@@ -1,3 +1,34 @@
+## v1.9.0 · 2026-10-03 —— 去掉外部写入通道、加入输出格式 config
+
+### 新增：输出格式 config
+- 卡片格式不再写死，改成可切换的 **config**：
+  - 内置一套默认（A Level / NCUK IFY 数学物理术语卡，7 个字段），开箱即用
+  - 可以**新建自己的 config**：起名字、写字段清单（`字段名 = AI键 = 提示`，第一行是卡片正面）、
+    写提示词（支持 `{word}` / `{subject}` 占位符）
+  - 设置页可切换、编辑、删除；自定义 config 会生成自己的 Anki 笔记类型（字段与模板按 config 生成）
+- 编辑器（WebView 里的输入框）会**按当前 config 动态重建**，不再是固定的 6 个框
+- AI 提示词、卡片正反面模板、笔记类型、批量写入的字段全部来自当前 config
+
+### 移除：外部写入通道（AnkiConnect）相关的一切
+- 删除 `AnkiClient` 与设置页里整套「电脑端 AnkiConnect」配置与教程（IP / 端口 / apiKey / 测试连接 / 6 步图文）
+- 首次引导改成：登录 AnkiWeb → 制卡 → 保存 → 同步，不再提电脑
+- 卡片写入只剩两条路：**内置引擎**（默认）→ 内置引擎不可用时退回**本机 AnkiDroid**
+- 顺带删掉一批啰嗦说明（「更新日志打包在应用内，离线可看」等）
+
+### 修
+- **arm64 真机上内置引擎起不来**：后端句柄是原生指针，可能为负（OPPO Pad 实测 `ptr=-5476376641436979016`），
+  而有效性判断写成了 `ptr <= 0`，于是只把 0 当无效。改成只判断 `ptr == 0` 后，
+  arm64 真机自检通过（打卡、建牌组、建笔记类型、写笔记全部正常）
+
+### 实测（OPPO Pad 3，arm64；以及 MuMu x86_64）
+- `ENGINE SELFTEST PASS`：原生库加载 → 后端启动 → 建收藏库 → 建牌组 → 建笔记类型 → 写笔记
+- `CONFIG SELFTEST PASS`：自建 config「探针词汇」（字段 词条/中文释义/例句）→ 设为当前 →
+  用它写卡 → `已写入本机收藏库（内置引擎）✓`
+- `BROWSE SELFTEST PASS`：牌组列表含新建的「探针牌组」，笔记与字段名都正确
+- 自检 130 项全过
+
+---
+
 # Anki 助手 · 更新日志
 
 这个文件记录每一次版本更新改了什么。
@@ -18,7 +49,7 @@
   - 手写 JNI 绑定（`net.ankiweb.rsdroid.NativeMethods`）+ `AnkiEngine` 封装，用 protobuf 与后端通信
   - 收藏库放在应用私有目录（`filesDir/collection.anki2`），由后端自己维护
 - **制卡、浏览、搜索、删除、同步全部可由内置引擎完成**，既不需要电脑上的 Anki，
-  也不需要装 AnkiDroid。后端不可用时自动回退到 AnkiDroid → 电脑 AnkiConnect
+  也不需要装 AnkiDroid。后端不可用时自动回退到 AnkiDroid
 - **AnkiWeb 登录与同步**（设置 → 内置引擎）：
   - 登录只保存后端签发的 hkey，**密码不落盘**
   - 按后端判断执行：无需同步 / 普通同步（含媒体）/ 全量同步
@@ -52,7 +83,7 @@
 ### 新增
 - **浏览页本机化**：牌组列表、按 Anki 搜索语法查询、卡片列表、详情预览都改走本机 AnkiDroid 的
   ContentProvider（`notes` 的 selection 参数就是 Anki 搜索语句，AnkiDroid 内部用 `col.findNotes(query)` 执行），
-  本机结果被拼成与 AnkiConnect `notesInfo` **同构的 JSON**，因此渲染代码两边共用一套
+  本机结果被拼成统一的 JSON 形状，因此渲染代码两边共用一套
 - **删除卡片**：本机模式直接删设备上的笔记（`DELETE content://…/notes/<id>`）
 - 「同步到云端」与本机模式的「图形化编辑」：AnkiDroid 的 API 没有这两个能力，
   改为**自动打开 AnkiDroid**（它自己会同步 / 自己提供编辑器），并在界面里说明原因
@@ -74,7 +105,7 @@
 
 ### 新增
 - **本机 AnkiDroid 写入**：装了 AnkiDroid 并授权后，卡片直接写进**设备上**的收藏库，
-  完全不需要电脑、不需要 AnkiConnect、不需要同一个 Wi-Fi
+  完全不需要电脑、不需要外部客户端、不需要同一个 Wi-Fi
   - 走 AnkiDroid 官方 ContentProvider API（`com.ichi2.anki.flashcards`，权限 `READ_WRITE_DATABASE`），
     只用系统自带的 android/java 库，没有引入任何第三方依赖
   - 自动建牌组（支持 `::` 层级）、自动建/复用笔记类型「专业术语卡」
@@ -87,13 +118,13 @@
 
 ### 说明（先说清楚边界）
 - **同步**：AnkiDroid 的 API 没有提供同步接口，所以本机写完要在 AnkiDroid 里同步一次才会推到 AnkiWeb
-  （打开 AnkiDroid 时通常会自己同步）。电脑端 AnkiConnect 模式仍然是"保存即 sync()"
-- **浏览/搜索**：仍然走电脑上的 Anki + AnkiConnect（AnkiDroid 的查询能力后续再接）
+  （打开 AnkiDroid 时通常会自己同步）
+- **浏览/搜索**：走本机 AnkiDroid 的查询接口
 - 第一次用要在 AnkiDroid 里点「开始」完成初始化（生成 collection）、允许「所有文件访问权限」，
   之后本应用才写得进去；AnkiDroid 在设置里有状态提示，没就绪会自动回退到电脑模式
 
 ### 实测（模拟器，全程不碰电脑）
-- 把电脑 IP 故意改成 `10.0.0.1`（AnkiConnect 彻底不可达）→ 制卡 → 保存 →
+- 把外部写入通道的地址故意改成不可达→ 制卡 → 保存 →
   提示「已保存到本机 AnkiDroid ✓」→ AnkiDroid 里出现 `A Level Pure Mathematics`（1 张卡片待复习）
 - 卡片背面：`【音标】` `【词性】` `【定义】` `【关联公式/符号】`（MathJax 正常渲染成
   *n₁ sin θ₁ = n₂ sin θ₂*）`【易混】`（英文词性、无短横）`【中文】` 全部正确
@@ -152,7 +183,7 @@
 - 设置页的「模型」「接口地址」不再显示为空：直接显示**当前生效值**
   （以往留空时内部按服务商预设兜底，界面看起来像没配好）
 - 以下是**本来就内置**的默认值，新设备无需填写，一并列出备查：
-  Anki 端口 `8765`、AnkiConnect apiKey 留空、AI 服务商「智谱 GLM-4.5-Flash（免费）」、
+  AI 服务商「智谱 GLM-4.5-Flash（免费）」、
   模型 `glm-4.5-flash`、接口地址 `open.bigmodel.cn/api/paas/v4/chat/completions`、
   默认牌组 `A Level Pure Mathematics`、默认标签 `ALevel::Maths`、
   学科背景 `CIE A-Level / NCUK IFY 数学、物理术语`、保存后自动同步 AnkiWeb 开启、
@@ -304,7 +335,7 @@
 - 无 Gradle 构建链：`aapt2` → `javac` → `d8` → `zipalign` → `apksigner`（沿用 StudyCompanion 的工具链约定）
 - **卡片格式**：正面只有单词；背面按固定格式渲染
   （音标 / 词性 / 定义 / 关联公式 / 易混 / 中文），关联公式用行内 MathJax `\(...\)`
-- **AnkiConnect 集成**：自动建牌组、自动建「专业术语卡」笔记类型、`addNote` 后 `changeDeck` 兜底、
+- **本机写入集成**：自动建牌组、自动建「专业术语卡」笔记类型、`addNote` 后 `changeDeck` 兜底、
   保存后自动 `sync()` 推到 AnkiWeb
 - **AI 自动填充**：OpenAI 兼容接口，内置 DeepSeek / 豆包 / 智谱 / 硅基流动 / 自定义预设，APK 内不内置任何 Key
 - **编辑器**：`assets/editor.html`（ES5，WebView 内跑），支持加粗/斜体/下划线/颜色/列表/引用/行内代码/
@@ -317,4 +348,4 @@
 ### 已知坑（都已在代码里注释）
 - Windows 上 aapt2 会把嵌套 assets 的路径写成反斜杠，`AssetManager` 打不开 → assets 保持扁平 + `AssetServer` 做映射
 - 本机小服务器必须先读完整个请求头再响应，否则 TCP RST 会把页面截断
-- AnkiConnect 插件配置文件不能带 UTF-8 BOM，否则插件启动失败
+- （历史）外部写入通道的配置文件不能带 UTF-8 BOM

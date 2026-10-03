@@ -27,7 +27,7 @@
 | 要求 | 实现 |
 |---|---|
 | (1) 适配平板、手机端 | 见上；同一份代码按最短边 600dp 自动切布局，转屏不重建 Activity（编辑到一半的卡片不会丢） |
-| (2) 调用 Anki API 自动保存到云端账号 | AnkiConnect：`addNote` 写入 + `sync()` 推到 AnkiWeb，见下文「为什么是 AnkiConnect」 |
+| (2) 调用 Anki API 自动保存到云端账号 | 内置 Anki 官方引擎（rslib/rsdroid）：写本机收藏库 + 同步到 AnkiWeb |
 | (3) 可以查看我的 Anki 内容 | 浏览页：牌组下拉、Anki 搜索语法、笔记列表、卡片详情（正面/背面按真实模板渲染，含 MathJax）、删除、`guiEditNote` 在电脑上打开 |
 | (4) 主界面输入 + Anki 级输入/预览 | 见「编辑器能力」；单词输入即卡片正面，AI 填充后逐项可改 |
 | (5) 手机底栏 / 平板左侧选择框 | 见上 |
@@ -83,47 +83,29 @@ velocity
 
 ---
 
-## 三、Anki 连接配置（电脑上只做一次）
+## 三、卡片写入与同步（内置引擎）
 
-**为什么是 AnkiConnect**：AnkiWeb 本身**没有公开的「往云端账号写卡片」API**（官方只提供桌面端与同步协议）。
-官方认可的写入入口是桌面版 Anki 的 **AnkiConnect** 插件（插件 ID `2055492159`）。所以链路是：
+**不需要电脑，也不需要装 AnkiDroid**：APK 里带着 Anki 官方的 Rust 后端（rslib/rsdroid），
+在设备上自己维护一个收藏库，并由它直接与 AnkiWeb 同步。编译方法见 `tools/BUILD_ENGINE.md`。
 
 ```
-Anki 助手  →  (局域网 Wi-Fi)  桌面版 Anki + AnkiConnect  →  sync()  →  AnkiWeb 云端账号
+Anki 助手（内置引擎） → 本机收藏库（filesDir/collection.anki2） → 同步 → AnkiWeb 云端账号
 ```
 
-### 本机已经配置好了（2026-10-03）
+设置 → **AnkiWeb 同步**：填邮箱 + 密码 → 点「登录并同步」。
+- 密码只用于登录，**不会保存在设备上**；登录后只保留后端签发的 hkey
+- 首次同步如果云端已有内容，会让你选择「上传本机」或「下载云端」（云端才是你的真实数据时选下载）
+- 之后每次点同步都是增量同步，并顺带同步媒体文件
 
-这台电脑上已经完成：插件装在 `%APPDATA%\Anki2\addons21\2055492159`，配置里
-`webBindAddress = "0.0.0.0"`、端口 8765，Windows 防火墙已放行 Anki 的入站连接，
-App 里的 IP 填的是 `192.168.71.112`，实测「测试连接 → 连接成功 ✓ AnkiConnect v6，共 4 个牌组」。
-**你只需要保证：用的时候电脑上的 Anki 开着，平板和电脑连同一个 Wi-Fi。**
+兜底：如果某台设备的 ABI 没有内置库（或编译时被移除），会退回**本机 AnkiDroid**（装了才生效）。
 
-### 换一台电脑时怎么做
+### 输出格式 config
 
-1. 电脑打开 Anki → 工具 → 插件 → **获取插件…** → 输入 `2055492159` → 确定 → 重启 Anki
-   （这一步是 Anki 自己从 AnkiWeb 下载，最省事）
-2. 插件列表里选中 AnkiConnect → **插件设置**，把 `webBindAddress` 改成 `"0.0.0.0"`（允许局域网访问），
-   保存后重启 Anki；想加密码就在同一份配置里加 `"apiKey": "一串字符"`（留 `null` 就是不校验，
-   同一 Wi-Fi 下谁都能控制你的 Anki，介意就加上）
-3. 第一次启动时 Windows 会弹「Windows 安全中心：是否允许公共网络和专用网络访问此应用？」
-   → 点 **允许**（不点就是这次实测到的现象：本机 127.0.0.1 能连、平板连过去超时）
-4. 电脑上 `Win+R` → `ipconfig` 看 IPv4 地址（本机是 `192.168.71.112`），填进 App 的
-   「设置 → Anki 连接 → 电脑的 IP 或主机名」
-5. 点「测试连接」：第一次会在电脑上的 Anki 弹出允许提示，点允许即可
-6. 之后每次保存都会调用 `sync()` 把卡片推到 AnkiWeb 云端；也可以在浏览页点「↻ 同步到云端」手动同步
-
-牌组与笔记类型**不用手工建**：应用会先 `createDeck` 建牌组，再 `modelNames` 检查「专业术语卡」是否存在，
-不存在则用 `createModel` 按上面的字段/模板/CSS 建好。
-
-> 没有 Wi-Fi、只有数据线时：`adb reverse tcp:8765 tcp:8765` 之后把 App 的 IP 填成 `127.0.0.1` 也能用
-> （等价于把平板的 8765 转发到电脑），但拔线就断了。
-
-### 断网怎么办
-
-Anki 连不上时，保存会**自动转存到「浏览 → 本地草稿」**，卡片不会丢；联网后在草稿页点「发送」或「全部发送」补发，也可以「导出」成 TSV 再到 Anki 里导入。
-
----
+设置 → **输出格式（config）**：决定 AI 按什么格式产出、卡片有哪些字段。
+- 内置一套默认（A Level / NCUK IFY 数学物理术语卡），开箱即用
+- 「新建」可以自定：名字、字段清单（每行 `字段名 = AI键 = 提示`，第一行是卡片正面）、提示词（支持 `{word}` / `{subject}`）
+- 每个自定义 config 会生成自己的 Anki 笔记类型（字段与正反面模板按 config 生成）
+- 制卡页的输入框会**按当前 config 动态重建**
 
 ## 四、AI 配置
 
@@ -195,7 +177,6 @@ AnkiAssistant\
 │   ├─ Changelog.java         更新日志：GitHub 缓存优先 → assets 内置副本兜底 + 版本号比对
 │   ├─ ChangelogView.java     更新日志阅读器（自绘 Markdown + 版本快捷跳转）
 │   ├─ CardFormat.java        ★格式的唯一事实来源：提示词、AI 回复解析、字段组装、模板与 CSS
-│   ├─ AnkiClient.java        AnkiConnect 客户端（纯 java.* + org.json，可自检）
 │   ├─ AiClient.java          OpenAI 兼容客户端 + 预设（可自检）
 │   ├─ AssetServer.java       仅监听 127.0.0.1 的静态资源服务器（给 WebView 供 assets）
 │   ├─ Store.java             设置与本地草稿（SharedPreferences）
@@ -203,9 +184,8 @@ AnkiAssistant\
 │   ├─ Th.java / CrashHandler.java   线程小工具 / 崩溃捕获（崩溃栈写进应用私有目录，界面上没有查看入口）
 └─ tools\
     ├─ SelfTest.java          JVM 自检（格式、提示词解析、请求构造、响应解析）
-    ├─ mock_servers.py        联调用：假 AnkiConnect(8765) + 假 AI(8899)
-    ├─ seed_mock_note.py      往假 AnkiConnect 里塞测试卡片
-    ├─ inspect_anki_collection.py  只读解析本机 Anki 收藏库（看已有卡片的写法）
+    ├─ mock_servers.py        联调用：假 AI(8899)
+        ├─ inspect_anki_collection.py  只读解析本机 Anki 收藏库（看已有卡片的写法）
     ├─ prepare_assets.py      MathJax 资源扁平化（打包前跑，见踩坑第 1 条）
     ├─ make_icons.py          生成启动图标
     ├─ check_html_js.js       校验 editor.html 内联 JS 语法
@@ -233,7 +213,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1        # 再打包
 | 项目 | 值 / 位置 |
 |---|---|
 | 电脑 IP | `Store.DEFAULT_ANKI_HOST` = `192.168.71.112`（换网络时在设置里改一次） |
-| 端口 / AnkiConnect Key | `8765` / 留空 |
+| AnkiWeb 账号 | 登录一次即可（只存 hkey） |
 | AI 服务商 / 模型 / 接口地址 | 智谱 GLM-4.5-Flash（免费）/ `glm-4.5-flash` / `open.bigmodel.cn/api/paas/v4/chat/completions` |
 | AI Key | `Secret.java` 里的 **AES-GCM 密文**（见下） |
 | 默认牌组 / 标签 / 学科背景 | `A Level Pure Mathematics` / `ALevel::Maths` / `CIE A-Level / NCUK IFY 数学、物理术语` |
@@ -267,7 +247,7 @@ java tools\MakeSecret.java "<新的Key>" "<新的40位口令>"
 `rslib/rsdroid` 采用 AGPL-3.0：**分发包含它的 APK 时，必须一并提供对应源码与许可声明**。
 对应源码即上面那个仓库（版本与 `tools/BUILD_ENGINE.md` 中记录的 commit / 工具链一致）。
 是否把本项目整体改为 AGPL-3.0 由作者决定；若不希望承担 AGPL 义务，
-可在设置里关掉「优先使用内置引擎」，此时可改用 AnkiDroid 或电脑端 AnkiConnect，
+可在设置里关掉「优先使用内置引擎」，此时改用本机 AnkiDroid，
 并自行从 APK 中移除 `lib/*/librsdroid.so` 与 `gen/` 目录。
 
 内置引擎的编译步骤见 **`tools/BUILD_ENGINE.md`**。
@@ -309,7 +289,7 @@ java tools\MakeSecret.java "<新的Key>" "<新的40位口令>"
 AI 回复的各种脏数据（```json 围栏、前后废话、中文键名、非 JSON、**全角冒号 / 键后丢引号的坏 JSON**、语法全坏时按字段名硬抠）、
 公式兜底（裸 LaTeX 自动补 `\(...\)`、`$...$` 统一成 `\(...\)`）、
 牌组→标签映射、思考模式参数、重试提示词、字段转义与换行处理、
-AnkiConnect 请求构造、响应 `error` 处理、地址归一化、AI 请求体与响应解析。
+CardConfig 构造与 JSON 往返、AI 请求体与响应解析、公式归一化。
 
 ### 真机联调（不装 Anki、不花 API 额度）
 
@@ -357,31 +337,6 @@ Anki 的 IP 留空（默认就是 `127.0.0.1:8765`）。所有请求都会记到
     打包后还会 `aapt2 dump badging` 复核，防止「编出来的 APK 还是旧版本」。
 11. **别忘 `loadUrl`**：编辑器 WebView 建好了却忘了加载页面，界面就是一块空白（这次真踩了）。
 12. **`AlertDialog.setItems` 的坐标**：自动化点击时用 `uiautomator dump` 取真实坐标，别按截图目测换算。
-
-### 装 AnkiConnect 时踩到的坑（真机排障记录）
-
-13. **手工写 `config.json` / `meta.json` 千万别带 UTF-8 BOM。**
-    PowerShell 的 `Set-Content -Encoding UTF8` 会加 BOM，Anki 用 `json.load(open(path, encoding="utf8"))`
-    读，BOM 直接让解析抛错 → `addonConfigDefaults()` 返回 `None` → 插件在
-    `util.setting('apiLogPath')` 处崩掉，弹「插件启动失败」。
-    诊断办法：临时放一个诊断插件把 `aqt.mw.addonManager` 的状态 dump 出来（`__name__`、`addonFromModule`、
-    `getConfig`、`addonMeta`、以及 `dis` 反汇编 `getConfig`），一眼就能看出卡在哪一步。
-    修法：用 `[System.IO.File]::WriteAllText($p, $json, (New-Object System.Text.UTF8Encoding($false)))` 写入。
-14. **要有 `meta.json`**（`{"name":..., "mod":..., "disabled":false}`），否则容易只被当成"开发插件"导入。
-15. **`createDeck` 的参数名在不同版本里不一样**：2025 年的 master 里是 `deck`，旧版/文档里是 `name`；
-    传错会返回 `createDeck() got an unexpected keyword argument 'name'`。App 里先发 `deck`，
-    报这个错再退回 `name`（见 `AnkiClient.createDeck`，自检有覆盖）。
-16. **有些 AnkiConnect 版本在 Anki 26 上会把新卡片丢进「系统默认」牌组**
-    （它们用的是老写法 `ankiNote.model()['did'] = deck_id`，对新版 Anki 不生效）。
-    App 的兜底：`addNote` 之后用 `findCards("nid:<noteId>")` + `changeDeck` 把卡片搬进目标牌组，
-    对已经放对的版本是空操作（见 `AnkiClient.saveNote` / `moveNoteToDeck`）。
-    实测结果：卡片正确落在目标牌组（当时用的是 `NCUK::专业术语`，该牌组后来按用户要求删除，
-    默认牌组改为收藏库里已有的 `A Level Pure Mathematics`）。
-17. **Windows 防火墙**：Anki 绑定 `0.0.0.0:8765` 后会弹安全中心提示，必须点「允许」；
-    否则电脑自己 `127.0.0.1:8765` 通、平板连过去 `nc: Timeout`。这个弹窗由系统进程托管，
-    普通权限的脚本点不到，只能人工点。
-
----
 
 ## 八、已验证 / 未验证
 **已在真机（OPPO Pad 3，Android 15，2800×2000）、模拟器（Pixel 5，Android 11）与真实 Anki 26.9.3 上跑通**：

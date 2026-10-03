@@ -17,8 +17,8 @@ if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 New-Item -ItemType Directory -Force $out | Out-Null
 
 $src = @(
+    "$here\src\com\ankiassistant\CardConfig.java",
     "$here\src\com\ankiassistant\CardFormat.java",
-    "$here\src\com\ankiassistant\AnkiClient.java",
     "$here\src\com\ankiassistant\AiClient.java",
     "$here\src\com\ankiassistant\Version.java",
     "$here\tools\SelfTest.java"

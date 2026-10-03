@@ -217,6 +217,7 @@ public class CreateView extends LinearLayout {
             @Override
             public void onPageFinished(WebView view, String url) {
                 editorReady = true;
+                pushConfig();
                 pushTemplates();
                 pushMeta();
                 pushWord(wordInput.getText().toString());
@@ -327,12 +328,39 @@ public class CreateView extends LinearLayout {
 
     private void pushTemplates() {
         try {
+            CardConfig cfg = store.activeConfig();
             JSONObject t = new JSONObject();
-            t.put("front", CardFormat.CARD_FRONT);
-            t.put("back", CardFormat.CARD_BACK);
+            t.put("front", cfg.cardFront());
+            t.put("back", cfg.cardBack());
             t.put("css", CardFormat.CARD_CSS);
             js("setTemplates(" + t.toString() + ")");
         } catch (Exception ignored) { }
+    }
+
+    /** 把当前 config 的字段清单下发给编辑器，让它按配置重建输入框 */
+    private void pushConfig() {
+        try {
+            CardConfig cfg = store.activeConfig();
+            JSONObject o = new JSONObject();
+            o.put("name", cfg.name);
+            org.json.JSONArray fs = new org.json.JSONArray();
+            for (int i = 0; i < cfg.fields.size(); i++) {
+                CardConfig.Field fd = cfg.fields.get(i);
+                JSONObject x = new JSONObject();
+                x.put("name", fd.name);
+                x.put("hint", fd.hint == null ? "" : fd.hint);
+                x.put("front", i == 0);
+                fs.put(x);
+            }
+            o.put("fields", fs);
+            js("applyConfig(" + o.toString() + ")");
+        } catch (Exception ignored) { }
+    }
+
+    /** 设置页换了 config 之后调用：重建字段框并刷新模板 */
+    public void refreshConfig() {
+        pushConfig();
+        pushTemplates();
     }
 
     private void pushWord(String word) {
@@ -471,7 +499,7 @@ public class CreateView extends LinearLayout {
                     final String key = store.aiApiKey();
                     final String model = store.aiModelEffective();
                     AiClient.Reply reply = ai.chatDetailed(base, key, model, CardFormat.SYSTEM,
-                            CardFormat.buildPrompt(word, store.subject()), !useThinking);
+                            store.activeConfig().buildPrompt(word, store.subject()), !useThinking);
                     JSONObject parsed = CardFormat.parseAi(reply.content);
                     boolean retried = false;
                     if (parsed == null) {
@@ -479,7 +507,7 @@ public class CreateView extends LinearLayout {
                         // 长思考容易把输出预算吃掉导致 JSON 截断，这一步实测能救回来。
                         retried = true;
                         reply = ai.chatDetailed(base, key, model, CardFormat.SYSTEM,
-                                CardFormat.buildPromptStrict(word, store.subject()), true);
+                                store.activeConfig().buildPromptStrict(word, store.subject()), true);
                         parsed = CardFormat.parseAi(reply.content);
                     }
                     final JSONObject parsedF = parsed;
@@ -492,13 +520,13 @@ public class CreateView extends LinearLayout {
                             setBusy(false);
                             setThinking(reasoningF);
                             if (parsedF != null) {
-                                pushFields(CardFormat.noteFields(word, parsedF));
+                                pushFields(CardFormat.noteFieldsFor(word, parsedF, store.activeConfig()));
                                 status(retriedF
                                         ? "AI 填充完成（首次输出格式不对，已自动重试成功），可以逐项修改后保存"
                                         : "AI 填充完成，可以逐项修改后保存", Ui.GREEN);
                             } else {
-                                pushFields(CardFormat.noteFields(word,
-                                        CardFormat.fallbackFields(word, rawF)));
+                                pushFields(CardFormat.noteFieldsFor(word,
+                                        CardFormat.fallbackFields(word, rawF), store.activeConfig()));
                                 status("AI 两次输出都不是 JSON，已原样放进「定义」，请手动整理", Ui.AMBER);
                             }
                         }
@@ -569,7 +597,7 @@ public class CreateView extends LinearLayout {
         readFields(new FieldsCb() {
             @Override
             public void onFields(JSONObject back) {
-                final JSONObject note = CardFormat.mergeNote(word, back);
+                final JSONObject note = CardFormat.mergeNoteFor(word, back, store.activeConfig());
                 if (asDraft) {
                     store.addDraft(word, note, deck, tags);
                     status("已存入本地草稿箱（浏览 → 本地草稿 可随时补发）", Ui.GREEN);
@@ -577,49 +605,30 @@ public class CreateView extends LinearLayout {
                     return;
                 }
                 js("setSaving(true)");
-                final boolean useDevice = store.useAnkiDroid() && AnkiDroidClient.ready(getContext());
-                status(useDevice ? "正在保存到本机 AnkiDroid…" : "正在保存到电脑上的 Anki…", Ui.SUB);
+                status("正在写入本机收藏库…", Ui.SUB);
                 Th.bg(new Runnable() {
                     @Override
                     public void run() {
                         try {
-                            if (useDevice) {
-                                // 不依赖电脑：直接写本机 AnkiDroid 的收藏库
-                                final long nid = AnkiDroidClient.saveNote(getContext(), deck, note,
-                                        jsonToStrings(parseTags(tags)));
-                                Th.ui(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        js("setSaving(false)");
-                                        clearEditor();
-                                        status("已保存到本机 AnkiDroid ✓ note " + nid
-                                                + "（在 AnkiDroid 里同步一次即可推到 AnkiWeb）", Ui.GREEN);
-                                    }
-                                });
-                                return;
-                            }
-                            AnkiClient anki = new AnkiClient(store.ankiHost(), store.ankiPort(),
-                                    store.ankiApiKey());
-                            long id = anki.saveNote(deck, note, parseTags(tags), store.autoSync());
+                            // 保存路径统一由 AnkiBackend 决定（内置引擎优先）
+                            final String ok = AnkiBackend.save(getContext(), store, deck, note,
+                                    parseTagsToArray(tags));
                             Th.ui(new Runnable() {
                                 @Override
                                 public void run() {
                                     js("setSaving(false)");
                                     clearEditor();
-                                    status(store.autoSync()
-                                            ? "已保存并同步到 AnkiWeb 云端 ✓"
-                                            : "已保存到本地 Anki（自动同步已关闭）✓", Ui.GREEN);
+                                    status(ok, Ui.GREEN);
                                 }
                             });
                         } catch (final Exception e) {
-                            // 两种后端都失败：自动转草稿，卡片不会丢
+                            // 写不进去就转草稿，卡片不会丢
                             store.addDraft(word, note, deck, tags);
                             Th.ui(new Runnable() {
                                 @Override
                                 public void run() {
                                     js("setSaving(false)");
-                                    status((useDevice ? "本机 AnkiDroid 写入失败" : "Anki 没连上")
-                                            + "，已自动转存草稿箱。原因：" + e.getMessage(), Ui.AMBER);
+                                    status("写入失败，已自动转存草稿箱。原因：" + e.getMessage(), Ui.AMBER);
                                 }
                             });
                         }
@@ -656,15 +665,12 @@ public class CreateView extends LinearLayout {
     // ------------------------------------------------------------------ 牌组选择
 
     private void pickDeck() {
-        status("正在从 Anki 读取牌组…", Ui.SUB);
+        status("正在读取本机牌组…", Ui.SUB);
         Th.bg(new Runnable() {
             @Override
             public void run() {
                 try {
-                    AnkiClient anki = new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey());
-                    final JSONArray names = anki.deckNames();
-                    final String[] items = new String[names.length()];
-                    for (int i = 0; i < items.length; i++) items[i] = names.optString(i, "");
+                    final String[] items = AnkiBackend.deckNames(getContext(), store);
                     Th.ui(new Runnable() {
                         @Override
                         public void run() {
@@ -684,7 +690,7 @@ public class CreateView extends LinearLayout {
                             d.show();
                         }
                     });
-                } catch (final AnkiClient.AnkiException e) {
+                } catch (final Exception e) {
                     Th.ui(new Runnable() {
                         @Override
                         public void run() {

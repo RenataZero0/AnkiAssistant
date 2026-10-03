@@ -7,10 +7,10 @@ import android.database.Cursor;
 import android.net.Uri;
 
 /**
- * 直接写本机的 AnkiDroid —— **完全不依赖电脑**。
+ * 直接写本机的 AnkiDroid（内置引擎不可用时的兜底方案）。
  *
- * 走的不是 AnkiConnect（那是给桌面版 Anki 用的），而是 AnkiDroid 官方提供的
- * ContentProvider API（`com.ichi2.anki.flashcards`），AnkiDroid 自己维护设备上的收藏库，
+ * 走的是 AnkiDroid 官方提供的 ContentProvider API（`com.ichi2.anki.flashcards`），
+ * AnkiDroid 自己维护设备上的收藏库，
  * 也能同步到 AnkiWeb。本文件按官方 API 的契约复刻了三个动作，只用 android/java 自带的东西：
  *
  *   1. 建牌组      insert  content://…/decks                {"deck_name": "A Level Pure Mathematics"}
@@ -75,7 +75,7 @@ public class AnkiDroidClient {
     public static String status(Context c) {
         if (!installed(c)) return "未安装 AnkiDroid";
         if (!hasPermission(c)) return "已安装，尚未授权";
-        return "已就绪（本机写入，不需要电脑）";
+        return "已就绪";
     }
 
     /** 该在哪个应用里弹授权界面（parallel 版包名不同，从 provider 反查） */
@@ -262,7 +262,7 @@ public class AnkiDroidClient {
     }
 
     /**
-     * 按 Anki 搜索语法查笔记（`deck:"xxx" tag:yyy 关键词`），返回**与 AnkiConnect notesInfo 同构**的 JSON：
+     * 按 Anki 搜索语法查笔记（`deck:"xxx" tag:yyy 关键词`），返回统一形状的 JSON：
      * `[{noteId, modelName, tags:[...], fields:{"字段名":{value, order}}}]`
      * —— 这样浏览页的渲染代码两边共用一套。
      */
@@ -350,16 +350,20 @@ public class AnkiDroidClient {
 
     /**
      * 确保牌组与笔记类型存在，然后把这条笔记写进本机 AnkiDroid。
-     * 字段顺序用 {@link CardFormat#FIELDS}，模板与样式也复用 CardFormat 里那套，保证与电脑端写入的卡片完全一致。
+     * 字段顺序用 {@link CardFormat#FIELDS}，模板与样式也复用 CardFormat 里那套。
      */
     public static long saveNote(Context c, String deckName, org.json.JSONObject note,
-                                String[] tags) throws ApiException {
+                                String[] tags, CardConfig cfg) throws ApiException {
+        if (cfg == null) cfg = CardConfig.defaultConfig();
         long did = ensureDeck(c, deckName);
-        long mid = ensureModel(c, CardFormat.MODEL_NAME, CardFormat.FIELDS,
-                CardFormat.CARD_FRONT, CardFormat.CARD_BACK, CardFormat.CARD_CSS);
-        String[] values = new String[CardFormat.FIELDS.length];
-        for (int i = 0; i < CardFormat.FIELDS.length; i++) {
-            values[i] = note == null ? "" : note.optString(CardFormat.FIELDS[i], "");
+        String ntName = cfg.noteType == null || cfg.noteType.trim().length() == 0
+                ? cfg.name : cfg.noteType.trim();
+        long mid = ensureModel(c, ntName, cfg.fieldNames(),
+                cfg.cardFront(), cfg.cardBack(), CardFormat.CARD_CSS);
+        String[] names = cfg.fieldNames();
+        String[] values = new String[names.length];
+        for (int i = 0; i < names.length; i++) {
+            values[i] = note == null ? "" : note.optString(names[i], "");
         }
         return addNote(c, did, mid, values, tags);
     }

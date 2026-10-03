@@ -55,6 +55,7 @@ public class MainActivity extends Activity {
         if (getIntent() != null && getIntent().getBooleanExtra("backendSave", false)) runBackendSaveTest();
         if (getIntent() != null && getIntent().getBooleanExtra("syncProbe", false)) runSyncProbe();
         if (getIntent() != null && getIntent().getBooleanExtra("browseProbe", false)) runBrowseProbe();
+        if (getIntent() != null && getIntent().getBooleanExtra("configProbe", false)) runConfigProbe();
         CrashHandler.install(this);
         // WebView 读不了 assets 里 1MB 以上的文件（MathJax 就超了），所以起个本机小服务器
         assetServer = new AssetServer(getAssets());
@@ -78,7 +79,7 @@ public class MainActivity extends Activity {
                 AnkiEngine e = null;
                 try {
                     e = new AnkiEngine();
-                    android.util.Log.i("AnkiAssistant", "ENGINE native library loaded, backend started");
+                    android.util.Log.i("AnkiAssistant", "ENGINE backend started, ptr=" + e.ptrValue());
                     e.openCollection(MainActivity.this);
                     android.util.Log.i("AnkiAssistant", "ENGINE collection at " + e.collectionPath());
                     java.util.Map<String, Long> decks = e.deckNames();
@@ -96,6 +97,40 @@ public class MainActivity extends Activity {
                     android.util.Log.e("AnkiAssistant", "ENGINE SELFTEST FAIL: " + t, t);
                 } finally {
                     if (e != null) e.close();
+                }
+            }
+        }).start();
+    }
+
+    /** 调试用：`--ez configProbe true` 自建 config → 设为当前 → 用它写一张卡 */
+    private void runConfigProbe() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    CardConfig c = new CardConfig();
+                    c.id = "cfgprobe";
+                    c.name = "探针词汇";
+                    c.noteType = "探针词汇";
+                    c.prompt = "给 {word} 出一张词卡，学科 {subject}，只输出 JSON：\n"
+                            + "term：词条\nmeaning：中文释义\nsentence：例句";
+                    c.fields.add(new CardConfig.Field("词条", "", "", false));
+                    c.fields.add(new CardConfig.Field("中文释义", "meaning", "中文", false));
+                    c.fields.add(new CardConfig.Field("例句", "sentence", "英文例句", false));
+                    store.saveConfig(c);
+                    store.setActiveConfigId(c.id);
+                    android.util.Log.i("AnkiAssistant", "CONFIG active = " + store.activeConfig().name
+                            + " fields=" + java.util.Arrays.toString(store.activeConfig().fieldNames()));
+
+                    org.json.JSONObject note = new org.json.JSONObject();
+                    note.put("词条", "probe-word");
+                    note.put("中文释义", "探针释义");
+                    note.put("例句", "This is a probe sentence.");
+                    String msg = AnkiBackend.save(MainActivity.this, store, "探针牌组", note,
+                            new String[]{"Probe"});
+                    android.util.Log.i("AnkiAssistant", "CONFIG save -> " + msg);
+                    android.util.Log.i("AnkiAssistant", "CONFIG SELFTEST PASS");
+                } catch (Throwable t) {
+                    android.util.Log.e("AnkiAssistant", "CONFIG SELFTEST FAIL: " + t, t);
                 }
             }
         }).start();
@@ -181,14 +216,14 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == AnkiDroidClient.PERM_REQUEST) {
-            if (settingsView != null) settingsView.refreshAnkiDroid();
+
             if (rail != null) checkAnkiLamp();
             if (grantResults != null && grantResults.length > 0
                     && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                android.widget.Toast.makeText(this, "已授权：现在可以直接写本机 AnkiDroid，不需要电脑",
+                android.widget.Toast.makeText(this, "已授权：本机 AnkiDroid 兜底可用",
                         android.widget.Toast.LENGTH_LONG).show();
             } else {
-                android.widget.Toast.makeText(this, "没有授权，仍会走电脑上的 AnkiConnect",
+                android.widget.Toast.makeText(this, "没有授权，本机 AnkiDroid 兜底不可用",
                         android.widget.Toast.LENGTH_LONG).show();
             }
         }
@@ -435,31 +470,9 @@ public class MainActivity extends Activity {
             ankiChecking = false;
             return;
         }
-        ankiChecking = true;
-        setAnkiLamp(0xFFF5A623, "检测中");
-        Th.bg(new Runnable() {
-            @Override public void run() {
-                int color;
-                String label;
-                try {
-                    AnkiClient c = new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey());
-                    c.versionString();
-                    color = 0xFF22A06B;
-                    label = "已连接";
-                } catch (Exception e) {
-                    color = 0xFFE5484D;
-                    label = "未连接";
-                }
-                final int fc = color;
-                final String fl = label;
-                Th.ui(new Runnable() {
-                    @Override public void run() {
-                        ankiChecking = false;
-                        setAnkiLamp(fc, fl);
-                    }
-                });
-            }
-        });
+        // 内置引擎不可用（也没有 AnkiDroid）→ 这台设备当前没法写卡
+        setAnkiLamp(0xFFE5484D, "不可用");
+        ankiChecking = false;
     }
 
     private void setAnkiLamp(int color, String label) {
@@ -521,14 +534,19 @@ public class MainActivity extends Activity {
 
     // ------------------------------------------------------------------ 首次引导
 
+    /** 设置页切换/编辑 config 之后，让制卡页按新字段重建输入框 */
+    public void onCardConfigChanged() {
+        if (createView != null) createView.refreshConfig();
+    }
+
     private void maybeIntro() {
         if (store.introShown()) return;
         AlertDialog d = new AlertDialog.Builder(this)
                 .setTitle("三步开始使用")
-                .setMessage("1. 电脑上的 Anki 安装 AnkiConnect 插件（ID 2055492159）\n\n"
-                        + "2. 设置里填电脑的局域网 IP，点「测试连接」\n\n"
-                        + "3. 制卡页输入单词 → AI 填充 → 保存到 Anki（自动同步到 AnkiWeb 云端）\n\n"
-                        + "详细步骤见「设置 → Anki 连接」。")
+                .setMessage("1. 设置 → AnkiWeb 同步：填邮箱和密码，点「登录并同步」"
+                        + "（首次会问你上传还是下载，云端已有卡片就选下载）\n\n"
+                        + "2. 回到制卡页输入单词 → 点「AI 填充」→ 逐项检查后「保存到 Anki」\n\n"
+                        + "3. 卡片进本机收藏库，之后点同步即可推到 AnkiWeb 云端")
                 .setPositiveButton("去设置", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {

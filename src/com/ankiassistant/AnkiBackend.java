@@ -8,9 +8,8 @@ import org.json.JSONObject;
 /**
  * 「卡片往哪写」的唯一决策点。
  *
- *   · 本机模式：装了 AnkiDroid 且已授权、并且设置里的开关是打开的 → 直接写本机 AnkiDroid
- *     （完全不需要电脑；卡片进的是设备上的收藏库，AnkiDroid 自己会同步到 AnkiWeb）
- *   · 电脑模式：否则走电脑上的 Anki + AnkiConnect（需要同一个 Wi-Fi 且 Anki 开着）
+ *   · 内置引擎（默认）：APK 自带的 Anki 官方后端，写进设备自己的收藏库，并由它同步 AnkiWeb
+ *   · 兜底：内置引擎不可用时，退回本机 AnkiDroid（装了才生效）
  *
  * 制卡页保存、草稿箱补发、浏览页重新保存都从这里走，避免两套逻辑各写各的。
  */
@@ -28,13 +27,12 @@ public class AnkiBackend {
 
     /** 当前后端的一句话说明（设置页/状态灯用） */
     public static String describe(Context c, Store store) {
-        if (useEngine(c, store)) return "内置引擎（APK 自带，不需要电脑也不需要 AnkiDroid）";
-        if (store.useEngine() && !EngineHolder.available(c)) return "电脑 AnkiConnect（本机 ABI 无内置引擎）";
-        if (useDevice(c, store)) return "本机 AnkiDroid（不需要电脑）";
-        if (!store.useAnkiDroid()) return "电脑 AnkiConnect（本机开关已关）";
-        if (!AnkiDroidClient.installed(c)) return "电脑 AnkiConnect（本机没装 AnkiDroid）";
-        if (!AnkiDroidClient.hasPermission(c)) return "电脑 AnkiConnect（AnkiDroid 未授权）";
-        return "电脑 AnkiConnect";
+        if (useEngine(c, store)) return "内置引擎";
+        if (useDevice(c, store)) return "本机 AnkiDroid（兜底）";
+        if (!EngineHolder.available(c)) return "不可用（本机 ABI 未包含引擎）";
+        if (!AnkiDroidClient.installed(c)) return "不可用（没装 AnkiDroid）";
+        if (!AnkiDroidClient.hasPermission(c)) return "不可用（AnkiDroid 未授权）";
+        return "不可用";
     }
 
     /**
@@ -42,46 +40,38 @@ public class AnkiBackend {
      */
     public static String save(Context c, Store store, String deck, JSONObject note,
                               String[] tags) throws Exception {
+        CardConfig cfg = store.activeConfig();
         if (useEngine(c, store)) {
             AnkiEngine e = EngineHolder.get(c);
             long did = e.ensureDeck(deck);
-            long mid = e.ensureCardNotetype();
-            String[] values = new String[CardFormat.FIELDS.length];
-            for (int i = 0; i < CardFormat.FIELDS.length; i++) {
-                values[i] = note == null ? "" : note.optString(CardFormat.FIELDS[i], "");
+            long mid = e.ensureCardNotetype(cfg);
+            String[] names = cfg.fieldNames();
+            String[] values = new String[names.length];
+            for (int i = 0; i < names.length; i++) {
+                values[i] = note == null ? "" : note.optString(names[i], "");
             }
             long nid = e.addNote(did, mid, values, tags);
             return "已写入本机收藏库（内置引擎）✓ note " + nid
-                    + "　点「同步到 AnkiWeb」即可推到云端";
+                    + "　点同步即可推到 AnkiWeb";
         }
         if (useDevice(c, store)) {
-            long nid = AnkiDroidClient.saveNote(c, deck, note, tags);
+            long nid = AnkiDroidClient.saveNote(c, deck, note, tags, cfg);
             return "已保存到本机 AnkiDroid ✓" + (nid > 0 ? "（note " + nid + "）" : "")
                     + "　在 AnkiDroid 里同步一次即可推到 AnkiWeb";
         }
-        AnkiClient anki = new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey());
-        JSONArray arr = new JSONArray();
-        if (tags != null) {
-            for (String t : tags) if (t != null && t.trim().length() > 0) arr.put(t.trim());
-        }
-        anki.saveNote(deck, note, arr, store.autoSync());
-        return store.autoSync() ? "已保存并同步到 AnkiWeb 云端 ✓"
-                : "已保存到本地 Anki（自动同步已关闭）✓";
+        throw new Exception("这台设备上内置引擎不可用（APK 缺少对应 ABI 的原生库）");
     }
 
     // ------------------------------------------------------------ 读：牌组 / 搜索 / 删除
 
-    /** 牌组列表（本机或电脑） */
+    /** 牌组列表 */
     public static String[] deckNames(Context c, Store store) throws Exception {
         if (useEngine(c, store)) {
             java.util.Map<String, Long> m = EngineHolder.get(c).deckNames();
             return m.keySet().toArray(new String[0]);
         }
         if (useDevice(c, store)) return AnkiDroidClient.deckNames(c);
-        JSONArray a = new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey()).deckNames();
-        String[] out = new String[a.length()];
-        for (int i = 0; i < out.length; i++) out[i] = a.optString(i, "");
-        return out;
+        throw new Exception("这台设备上内置引擎不可用（APK 缺少对应 ABI 的原生库）");
     }
 
     /** 按 Anki 搜索语法查笔记，返回与 notesInfo 同构的 JSON */
@@ -89,21 +79,13 @@ public class AnkiBackend {
             throws Exception {
         if (useEngine(c, store)) return EngineHolder.get(c).searchNotes(query, limit);
         if (useDevice(c, store)) return AnkiDroidClient.searchNotes(c, query, limit);
-        AnkiClient anki = new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey());
-        JSONArray ids = anki.findNotes(query);
-        JSONArray take = new JSONArray();
-        for (int i = 0; i < ids.length() && i < limit; i++) take.put(ids.opt(i));
-        return take.length() == 0 ? new JSONArray() : anki.notesInfo(take);
+        throw new Exception("这台设备上内置引擎不可用（APK 缺少对应 ABI 的原生库）");
     }
 
     /** 查到的总数（本机模式没有单独的计数接口，就用拿到的条数） */
     public static int searchTotal(Context c, Store store, String query) throws Exception {
         if (useEngine(c, store)) return EngineHolder.get(c).searchCount(query);
-        if (!useDevice(c, store)) {
-            return new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey())
-                    .findNotes(query).length();
-        }
-        return -1;   // 本机模式：UI 用返回条数
+        return -1;   // AnkiDroid 回退路径没有独立计数接口，UI 用返回条数
     }
 
     /** 删除笔记 */
@@ -112,39 +94,22 @@ public class AnkiBackend {
         for (int i = 0; i < ids.length(); i++) arr[i] = ids.optLong(i, -1);
         if (useEngine(c, store)) return EngineHolder.get(c).removeNotes(arr);
         if (useDevice(c, store)) return AnkiDroidClient.deleteNotes(c, arr);
-        JSONArray a = new JSONArray();
-        for (long id : arr) a.put(id);
-        return new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey())
-                .deleteNotes(a).length();
+        throw new Exception("这台设备上内置引擎不可用（APK 缺少对应 ABI 的原生库）");
     }
 
-    /**
-     * 「同步」这件事两边不一样：
-     *   · 电脑模式：直接调用 AnkiConnect 的 sync()
-     *   · 本机模式：AnkiDroid 的 API 没有同步接口 → 把 AnkiDroid 拉到前台，它自己会同步
-     * 返回一句给用户看的话。
-     */
+    /** 同步：内置引擎走完整的登录/比对/同步流程（设置页那个按钮） */
     public static String sync(Context c, Store store) throws Exception {
         if (useEngine(c, store)) {
-            // 内置引擎：交给 AnkiSync 走完整的登录/比对/同步流程（设置页那个按钮）
-            return "内置引擎模式：请在「设置 → 内置引擎」里点「登录并同步到 AnkiWeb」";
+            return "请在「设置 → AnkiWeb 同步」里点「登录并同步」";
         }
-        if (useDevice(c, store)) {
-            AnkiDroidClient.openApp(c);
-            return "已打开 AnkiDroid —— 它在启动时会自动同步（本机 API 不提供同步调用）";
-        }
-        new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey()).sync();
-        return "已同步到 AnkiWeb ✓";
+        AnkiDroidClient.openApp(c);
+        return "已打开 AnkiDroid —— 它在启动时会自动同步";
     }
 
-    /** 图形化编辑：电脑模式用 AnkiConnect 的 guiEditNote；本机模式打开 AnkiDroid */
+    /** 图形化编辑：AnkiDroid 提供编辑器；内置引擎这边暂不提供 */
     public static String guiEdit(Context c, Store store, long noteId) throws Exception {
-        if (useDevice(c, store)) {
-            AnkiDroidClient.openApp(c);
-            return "已打开 AnkiDroid —— 请在其中找到这张卡片编辑（本机 API 不提供图形编辑）";
-        }
-        new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey()).guiEditNote(noteId);
-        return "已在电脑上的 Anki 里打开这张卡片";
+        AnkiDroidClient.openApp(c);
+        return "已打开 AnkiDroid —— 请在其中找到这张卡片编辑";
     }
 
     /** 便捷重载：标签用空格/逗号分隔的字符串 */

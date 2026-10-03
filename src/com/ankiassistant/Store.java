@@ -33,30 +33,68 @@ public class Store {
     // ------------------------------------------------------------------ 设置
 
     /**
-     * 电脑（AnkiConnect）的局域网 IP —— **内置默认值**：新设备装完就是它，不用再手输。
-     * 换了网络、路由器分了别的 IP 时，在「设置 → Anki 连接」里改一下即可（会存进本机）。
-     */
-    public static final String DEFAULT_ANKI_HOST = "192.168.71.112";
-
-    public String ankiHost() {
-        String h = sp.getString("ankiHost", "");
-        return (h == null || h.trim().length() == 0) ? DEFAULT_ANKI_HOST : h.trim();
-    }
-    public void setAnkiHost(String v) { put("ankiHost", v); }
-
-    public int ankiPort() {
-        try { return Integer.parseInt(sp.getString("ankiPort", "8765").trim()); }
-        catch (Exception e) { return 8765; }
-    }
-    public void setAnkiPort(String v) { put("ankiPort", v); }
-
-    /**
      * 优先用**内置引擎**（APK 里自带的 Anki 官方 Rust 后端）。默认开启：
-     * 可用就用它（不需要电脑、也不需要 AnkiDroid）；不可用自动回退到 AnkiDroid / 电脑。
+     * 可用就用它（不需要电脑、也不需要 AnkiDroid）；不可用时回退到 AnkiDroid。
      */
     public boolean useEngine() { return sp.getBoolean("useEngine", true); }
     public void setUseEngine(boolean v) { sp.edit().putBoolean("useEngine", v).apply(); }
 
+    // ------------------------------------------------------------ 输出格式 config
+
+    /** 所有 config（永远包含内置默认那条） */
+    public java.util.List<CardConfig> configs() {
+        java.util.List<CardConfig> out = new java.util.ArrayList<CardConfig>();
+        out.add(CardConfig.defaultConfig());
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray(sp.getString("configs", "[]"));
+            for (int i = 0; i < arr.length(); i++) {
+                org.json.JSONObject o = arr.optJSONObject(i);
+                if (o == null) continue;
+                CardConfig c = CardConfig.fromJson(o);
+                if (c.id == null || c.id.length() == 0 || CardConfig.BUILTIN_ID.equals(c.id)) continue;
+                out.add(c);
+            }
+        } catch (Exception ignored) { }
+        return out;
+    }
+
+    /** 当前选中的 config（找不到就回落内置默认） */
+    public CardConfig activeConfig() {
+        String id = sp.getString("activeConfigId", CardConfig.BUILTIN_ID);
+        for (CardConfig c : configs()) {
+            if (c.id.equals(id)) return c;
+        }
+        return CardConfig.defaultConfig();
+    }
+
+    public void setActiveConfigId(String id) {
+        put("activeConfigId", id == null ? CardConfig.BUILTIN_ID : id);
+    }
+
+    /** 新增或更新一条自定义 config（内置那条不允许改） */
+    public void saveConfig(CardConfig c) {
+        if (c == null || CardConfig.BUILTIN_ID.equals(c.id)) return;
+        org.json.JSONArray arr = new org.json.JSONArray();
+        boolean replaced = false;
+        for (CardConfig x : configs()) {
+            if (CardConfig.BUILTIN_ID.equals(x.id)) continue;
+            if (x.id.equals(c.id)) { arr.put(c.toJson()); replaced = true; }
+            else arr.put(x.toJson());
+        }
+        if (!replaced) arr.put(c.toJson());
+        put("configs", arr.toString());
+    }
+
+    public void deleteConfig(String id) {
+        if (id == null || CardConfig.BUILTIN_ID.equals(id)) return;
+        org.json.JSONArray arr = new org.json.JSONArray();
+        for (CardConfig x : configs()) {
+            if (CardConfig.BUILTIN_ID.equals(x.id) || x.id.equals(id)) continue;
+            arr.put(x.toJson());
+        }
+        put("configs", arr.toString());
+        if (id.equals(sp.getString("activeConfigId", ""))) setActiveConfigId(CardConfig.BUILTIN_ID);
+    }
     /** AnkiWeb 账号（只存邮箱；密码不落盘，登录后只保留后端签发的 hkey） */
     public String ankiWebUser() { return sp.getString("ankiWebUser", ""); }
     public void setAnkiWebUser(String v) { put("ankiWebUser", v == null ? "" : v.trim()); }
@@ -70,13 +108,10 @@ public class Store {
     public void setLastSyncAt(long v) { sp.edit().putLong("lastSyncAt", v).apply(); }
 
     /**
-     * 优先用本机 AnkiDroid 写入（不需要电脑）。默认开启：
-     * 装了 AnkiDroid 且授权了就本机写；没装或没授权则自动回退到电脑上的 AnkiConnect。
+     * 内置引擎不可用时，退回本机 AnkiDroid（装了才生效）。默认开启。
      */
     public boolean useAnkiDroid() { return sp.getBoolean("useAnkiDroid", true); }
     public void setUseAnkiDroid(boolean v) { sp.edit().putBoolean("useAnkiDroid", v).apply(); }
-    public String ankiApiKey() { return sp.getString("ankiApiKey", ""); }
-    public void setAnkiApiKey(String v) { put("ankiApiKey", v); }
 
     public String aiProvider() { return sp.getString("aiProvider", AiClient.P_ZHIPU); }
     public void setAiProvider(String v) { put("aiProvider", v); }

@@ -26,7 +26,7 @@ import java.util.Locale;
  * 浏览页：
  *   · 云端：读 Anki 的牌组/笔记（deckNames / findNotes / notesInfo），点开看渲染好的卡片
  *   · 本地草稿：断网时保存的卡片，联网后一键补发
- *   · 同步：手动触发 AnkiConnect 的 sync()，把本地改动推到 AnkiWeb 云端
+ *   · 同步：内置引擎与 AnkiWeb 比对后推送（在设置页触发）
  */
 public class BrowseView extends LinearLayout {
 
@@ -378,10 +378,6 @@ public class BrowseView extends LinearLayout {
         });
     }
 
-    private AnkiClient client() {
-        return new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey());
-    }
-
     /** 组装 Anki 搜索语句：牌组 + 用户输入（支持 Anki 搜索语法） */
     private String buildQuery(String user) {
         String q = "";
@@ -452,7 +448,7 @@ public class BrowseView extends LinearLayout {
         return v;
     }
 
-    /** 标签：AnkiConnect 返回的是数组，拼成 "# a  # b" */
+    /** 标签：接口返回的是数组，拼成 "# a  # b" */
     static String tagString(JSONObject note) {
         JSONArray arr = note.optJSONArray("tags");
         if (arr == null) return note.optString("tags", "");
@@ -562,9 +558,10 @@ public class BrowseView extends LinearLayout {
 
     private String templateJson() {
         try {
+            CardConfig cfg = store.activeConfig();
             JSONObject t = new JSONObject();
-            t.put("front", CardFormat.CARD_FRONT);
-            t.put("back", CardFormat.CARD_BACK);
+            t.put("front", cfg.cardFront());
+            t.put("back", cfg.cardBack());
             t.put("css", CardFormat.CARD_CSS);
             return t.toString();
         } catch (Exception e) {

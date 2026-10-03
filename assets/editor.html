@@ -257,7 +257,7 @@ function mjStatus() {
         <input type="text" id="deckInput" class="mtxt" spellcheck="false" autocomplete="off"
                placeholder="A Level Pure Mathematics">
       </div>
-      <div class="pbtn small" id="btnPick" onclick="pickDeck()">▾ 从 Anki 选择</div>
+      <div class="pbtn small" id="btnPick" onclick="pickDeck()">▾ 选择牌组</div>
       <div class="mcol">
         <div class="mlabel">标签（随牌组自动填充）</div>
         <input type="text" id="tagInput" class="mtxt" spellcheck="false" autocomplete="off"
@@ -390,6 +390,53 @@ function setFields(obj) {
     else if (ed) ed.value = A.fields[name] || '';
   }
   if (A.mode === 'preview') refreshPreview();
+}
+
+/* 按当前 config 重建编辑区的字段框（第一个字段是正面=单词，不在这里显示） */
+function applyConfig(cfg) {
+  if (!cfg || !cfg.fields) return;
+  var old = {};
+  var fs = fields_();
+  for (var i = 0; i < fs.length; i++) {
+    var n = fs[i].getAttribute('data-f');
+    var ed = fs[i].querySelector('.fedit');
+    if (ed) old[n] = (ed.tagName === 'TEXTAREA') ? ed.value : ed.innerHTML;
+  }
+  var pane = document.getElementById('editPane');
+  for (var j = fs.length - 1; j >= 0; j--) pane.removeChild(fs[j]);
+  var meta = document.getElementById('metaPane');
+  var made = [];
+  for (var k = 0; k < cfg.fields.length; k++) {
+    var f = cfg.fields[k];
+    if (f.front) continue;                    /* 正面由上面的单词框负责 */
+    var box = document.createElement('div');
+    box.className = 'field';
+    box.setAttribute('data-f', f.name);
+    var head = document.createElement('div');
+    head.className = 'fhead';
+    head.appendChild(document.createTextNode(f.name + ' '));
+    var tag = document.createElement('span');
+    tag.className = 'htmltag';
+    tag.textContent = 'HTML';
+    tag.onclick = function () { toggleHtmlFor(this); };
+    head.appendChild(tag);
+    box.appendChild(head);
+    var edit = document.createElement('div');
+    edit.className = 'fedit';
+    edit.setAttribute('contenteditable', 'true');
+    if (f.hint) edit.setAttribute('data-ph', f.hint);
+    box.appendChild(edit);
+    pane.insertBefore(box, meta);
+    made.push(box);
+  }
+  A.configName = cfg.name || '';
+  var keep = {};
+  for (var m = 0; m < made.length; m++) {
+    var nm = made[m].getAttribute('data-f');
+    keep[nm] = old[nm] || '';
+  }
+  A.fields = keep;
+  setFields(keep);
 }
 
 function getFields() {

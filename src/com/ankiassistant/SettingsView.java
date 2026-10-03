@@ -26,20 +26,18 @@ public class SettingsView extends LinearLayout {
     private final MainActivity act;
     private final Store store;
 
-    private EditText hostInput, portInput, ankiKeyInput;
     private EditText aiKeyInput, modelInput, urlInput;
     private EditText deckInput, tagInput, subjectInput;
     private CheckBox autoSyncBox;
-    private Button providerBtn, testAnkiBtn, testAiBtn, saveBtn;
-    private TextView ankiStatus, aiStatus, updateStatus;
+    private Button providerBtn, testAiBtn, saveBtn;
+    private TextView aiStatus, updateStatus;
     private ProgressBar aiBusy;
     private CheckBox thinkingCheck;
-    private CheckBox deviceCheck;
-    private TextView deviceTip;
-    private Button deviceAuthBtn;
     private TextView engineStatus;
     private Button engineTestBtn;
     private CheckBox engineCheck;
+    private TextView configStatus;
+    private Button configPickBtn, configNewBtn, configEditBtn, configDelBtn;
     private TextView syncStatus;
     private EditText syncUserInput, syncPassInput;
     private Button syncBtn;
@@ -123,85 +121,6 @@ public class SettingsView extends LinearLayout {
         scroll.addView(col, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        // ================= Anki 连接 =================
-        LinearLayout anki = card();
-        anki.addView(heading("Anki 连接"));
-
-        // ---- 本机写入（AnkiDroid）：不依赖电脑 ----
-        deviceCheck = new CheckBox(getContext());
-        deviceCheck.setTextColor(Ui.TEXT_BODY);
-        deviceCheck.setTextSize(14);
-        anki.addView(checkRow(deviceCheck, "优先在本机用 AnkiDroid 写入（不需要电脑）"));
-        deviceTip = new TextView(getContext());
-        deviceTip.setTextColor(Ui.TEXT_DIM);
-        deviceTip.setTextSize(12.5f);
-        deviceTip.setLineSpacing(0, 1.15f);
-        anki.addView(deviceTip);
-        deviceAuthBtn = new Button(getContext());
-        deviceAuthBtn.setText("授权 AnkiDroid");
-        Ui.secondary(deviceAuthBtn);
-        deviceAuthBtn.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { requestAnkiDroidPermission(); }
-        });
-        LinearLayout.LayoutParams authLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        authLp.topMargin = Ui.dp(8);
-        anki.addView(deviceAuthBtn, authLp);
-
-        TextView ankiTip = new TextView(getContext());
-        ankiTip.setText("下面这几项是「电脑上的 Anki + AnkiConnect」的配置：本机 AnkiDroid 写入失败、"
-                + "或者你想让卡片直接落到电脑那份收藏库时才会用到（AnkiDroid 模式完全不需要电脑）。");
-        ankiTip.setTextColor(Ui.TEXT_DIM);
-        ankiTip.setTextSize(12.5f);
-        ankiTip.setLineSpacing(0, 1.15f);
-        ankiTip.setPadding(0, Ui.dp(10), 0, 0);
-        anki.addView(ankiTip);
-
-        hostInput = input("例如 192.168.1.7", false);
-        portInput = input("8765", false);
-        ankiKeyInput = input("AnkiConnect 的 apiKey（没设就留空）", true);
-        addTo(anki, "电脑的 IP 或主机名", hostInput);
-        addTo(anki, "端口", portInput);
-        addTo(anki, "API Key", ankiKeyInput);
-
-        LinearLayout row = new LinearLayout(getContext());
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, Ui.dp(10), 0, 0);
-        testAnkiBtn = new Button(getContext());
-        testAnkiBtn.setText("测试连接");
-        Ui.primary(testAnkiBtn);
-        testAnkiBtn.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { testAnki(); }
-        });
-        row.addView(testAnkiBtn, new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        anki.addView(row);
-
-        ankiStatus = status();
-        anki.addView(ankiStatus);
-
-        anki.addView(heading("怎么配置（电脑上只做一次）"));
-        TextView guide = new TextView(getContext());
-        guide.setText("1. 电脑打开 Anki → 工具 → 插件 → 获取插件，输入 2055492159（AnkiConnect）→ 重启 Anki\n\n"
-                + "2. 插件列表里选中 AnkiConnect → 插件设置，把 webBindAddress 改成 \"0.0.0.0\"（允许局域网访问），"
-                + "保存后再重启 Anki；想加密码就在配置里加 \"apiKey\": \"一串字符\"，并把同样的值填到上面\n\n"
-                + "3. 重启后 Windows 会弹「安全中心：是否允许访问此应用」→ 必须点「允许」，"
-                + "否则只有电脑自己能连，手机/平板连过去会超时\n\n"
-                + "4. 电脑上 Win+R 输入 ipconfig 看 IPv4 地址，填到上面的「电脑的 IP 或主机名」\n\n"
-                + "5. 点「测试连接」：第一次会在电脑上的 Anki 弹出允许提示，点允许即可\n\n"
-                + "6. 保存卡片时会自动调用 sync()，推送到你的 AnkiWeb 云端账号\n\n"
-                + "（没有 Wi-Fi 只有数据线时：adb reverse tcp:8765 tcp:8765，IP 填 127.0.0.1 也能用）");
-        guide.setTextColor(Ui.TEXT_BODY);
-        guide.setTextSize(13);
-        guide.setLineSpacing(0, 1.15f);
-        guide.setPadding(0, Ui.dp(6), 0, 0);
-        anki.addView(guide);
-
-        LinearLayout.LayoutParams ankiLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        ankiLp.bottomMargin = Ui.dp(11);
-        col.addView(anki, ankiLp);
-
         // ================= AI =================
         LinearLayout ai = card();
         ai.addView(heading("AI 自动填充"));
@@ -266,7 +185,7 @@ public class SettingsView extends LinearLayout {
         thinkingCheck = new CheckBox(getContext());
         thinkingCheck.setTextColor(Ui.TEXT_BODY);
         thinkingCheck.setTextSize(14);
-        ai.addView(checkRow(thinkingCheck, "让思考型模型先思考（更慢；思考过程显示在制卡页）"));
+        ai.addView(checkRow(thinkingCheck, "让思考型模型先思考"));
 
         TextView thinkingTip = new TextView(getContext());
         thinkingTip.setText("默认关闭。实测 glm-4.5-flash：开思考要 23 秒、思考内容 1279 字，"
@@ -312,13 +231,75 @@ public class SettingsView extends LinearLayout {
         defLp.bottomMargin = Ui.dp(11);
         col.addView(def, defLp);
 
+        // ================= 输出格式 config =================
+        LinearLayout cfgCard = card();
+        cfgCard.addView(heading("输出格式（config）"));
+        TextView cfgTip = new TextView(getContext());
+        cfgTip.setText("决定 AI 按什么格式产出、卡片有哪些字段。默认那套是 A Level 数学/物理术语卡；"
+                + "也可以自己新建一套（自定字段与提示词）。");
+        cfgTip.setTextColor(Ui.TEXT_DIM);
+        cfgTip.setTextSize(12.5f);
+        cfgTip.setLineSpacing(0, 1.15f);
+        cfgCard.addView(cfgTip);
+
+        configStatus = status();
+        cfgCard.addView(configStatus);
+
+        configPickBtn = new Button(getContext());
+        configPickBtn.setText("切换 config");
+        Ui.primary(configPickBtn);
+        configPickBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { pickConfig(); }
+        });
+        LinearLayout.LayoutParams cfgLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        cfgLp.topMargin = Ui.dp(8);
+        cfgCard.addView(configPickBtn, cfgLp);
+
+        LinearLayout cfgRow = new LinearLayout(getContext());
+        cfgRow.setOrientation(LinearLayout.HORIZONTAL);
+        cfgRow.setPadding(0, Ui.dp(8), 0, 0);
+        configNewBtn = new Button(getContext());
+        configNewBtn.setText("新建");
+        Ui.secondary(configNewBtn);
+        configNewBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { editConfig(null); }
+        });
+        configEditBtn = new Button(getContext());
+        configEditBtn.setText("编辑");
+        Ui.secondary(configEditBtn);
+        configEditBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { editConfig(store.activeConfig()); }
+        });
+        configDelBtn = new Button(getContext());
+        configDelBtn.setText("删除");
+        Ui.secondary(configDelBtn);
+        configDelBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { deleteActiveConfig(); }
+        });
+        LinearLayout.LayoutParams third = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        third.rightMargin = Ui.dp(6);
+        cfgRow.addView(configNewBtn, third);
+        LinearLayout.LayoutParams third2 = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        third2.rightMargin = Ui.dp(6);
+        cfgRow.addView(configEditBtn, third2);
+        cfgRow.addView(configDelBtn, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        cfgCard.addView(cfgRow);
+
+        LinearLayout.LayoutParams cfgCardLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        cfgCardLp.bottomMargin = Ui.dp(11);
+        col.addView(cfgCard, cfgCardLp);
+
         // ================= 内置引擎（Anki 官方 Rust 后端打包在 APK 里） =================
         LinearLayout eng = card();
-        eng.addView(heading("内置引擎（不需要 AnkiDroid，也不需要电脑）"));
+        eng.addView(heading("AnkiWeb 同步（内置引擎）"));
         TextView engTip = new TextView(getContext());
-        engTip.setText("APK 里带着 Anki 官方的 Rust 后端（rslib/rsdroid，AGPL-3.0）。"
-                + "开启后卡片写进设备自己的收藏库，并由它直接和 AnkiWeb 同步 —— "
-                + "既不用装 AnkiDroid，也不用电脑开着 Anki。");
+        engTip.setText("卡片写进设备自己的收藏库，并由内置引擎直接与 AnkiWeb 同步。"
+                + "登录一次即可；密码不会保存在设备上。");
         engTip.setTextColor(Ui.TEXT_DIM);
         engTip.setTextSize(12.5f);
         engTip.setLineSpacing(0, 1.15f);
@@ -366,8 +347,7 @@ public class SettingsView extends LinearLayout {
         LinearLayout upd = card();
         upd.addView(heading("更新内容"));
         TextView ver = new TextView(getContext());
-        ver.setText("当前版本 " + Version.VERSION_TAG
-                + "　·　更新日志打包在应用内，离线可看");
+        ver.setText("当前版本 " + Version.VERSION_TAG);
         ver.setTextColor(Ui.TEXT_BODY);
         ver.setTextSize(13);
         ver.setLineSpacing(0, 1.2f);
@@ -430,9 +410,6 @@ public class SettingsView extends LinearLayout {
     // ------------------------------------------------------------------ 读写
 
     private void loadValues() {
-        hostInput.setText(store.ankiHost());
-        portInput.setText(String.valueOf(store.ankiPort()));
-        ankiKeyInput.setText(store.ankiApiKey());
         aiKeyInput.setText(store.aiApiKey());
         modelInput.setText(store.aiModelEffective());
         urlInput.setText(store.aiBaseUrlEffective());
@@ -444,21 +421,16 @@ public class SettingsView extends LinearLayout {
         if (engineCheck != null) engineCheck.setChecked(store.useEngine());
         if (syncUserInput != null) syncUserInput.setText(store.ankiWebUser());
         if (syncStatus != null) syncStatus.setText(AnkiSync.describe(store));
-        refreshAnkiDroid();
         refreshProviderBtn();
+        refreshConfigCard();
     }
 
     public void onShown() {
         // 从别的页面回来时，输入框里可能已被改过，重新读一次（用户没保存就不覆盖已有输入）
-        if (hostInput.getText().length() == 0) loadValues();
         refreshProviderBtn();
     }
 
     private void save() {
-        store.setAnkiHost(hostInput.getText().toString());
-        store.setAnkiPort(portInput.getText().toString().trim().length() == 0
-                ? "8765" : portInput.getText().toString().trim());
-        store.setAnkiApiKey(ankiKeyInput.getText().toString());
         store.setAiApiKey(aiKeyInput.getText().toString());
         store.setAiModel(modelInput.getText().toString());
         store.setAiBaseUrl(urlInput.getText().toString());
@@ -467,12 +439,184 @@ public class SettingsView extends LinearLayout {
         store.setSubject(subjectInput.getText().toString());
         store.setAutoSync(autoSyncBox.isChecked());
         if (thinkingCheck != null) store.setAiThinking(thinkingCheck.isChecked());
-        if (deviceCheck != null) store.setUseAnkiDroid(deviceCheck.isChecked());
         if (engineCheck != null) store.setUseEngine(engineCheck.isChecked());
-        ankiStatus.setText("设置已保存 ✓");
-        ankiStatus.setTextColor(Ui.GREEN);
         // 连接信息可能改了，侧栏那盏状态灯跟着复测一次（手机端没有灯，内部会自己忽略）
         if (act != null) act.checkAnkiLamp();
+    }
+
+    // ------------------------------------------------------------------ 输出格式 config
+
+    private void refreshConfigCard() {
+        if (configStatus == null) return;
+        CardConfig c = store.activeConfig();
+        StringBuilder sb = new StringBuilder();
+        sb.append("当前：").append(c.name);
+        sb.append(c.builtin ? "（内置）" : "（自定义）");
+        sb.append("\n字段 ").append(c.fields.size()).append(" 个：");
+        for (int i = 0; i < c.fields.size(); i++) {
+            if (i > 0) sb.append(" / ");
+            sb.append(c.fields.get(i).name);
+        }
+        sb.append("\n笔记类型：").append(c.noteType);
+        configStatus.setText(sb.toString());
+        configStatus.setTextColor(Ui.TEXT_BODY);
+        boolean custom = !c.builtin;
+        configEditBtn.setVisibility(custom ? View.VISIBLE : View.GONE);
+        configDelBtn.setVisibility(custom ? View.VISIBLE : View.GONE);
+    }
+
+    private void pickConfig() {
+        final java.util.List<CardConfig> all = store.configs();
+        final String[] names = new String[all.size()];
+        int checked = 0;
+        String activeId = store.activeConfig().id;
+        for (int i = 0; i < all.size(); i++) {
+            CardConfig c = all.get(i);
+            names[i] = c.name + (c.builtin ? "（内置）" : "");
+            if (c.id.equals(activeId)) checked = i;
+        }
+        new AlertDialog.Builder(act)
+                .setTitle("选择 config")
+                .setSingleChoiceItems(names, checked, new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int which) {
+                        store.setActiveConfigId(all.get(which).id);
+                        d.dismiss();
+                        refreshConfigCard();
+                        onConfigChanged();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    /** 新建（cfg==null 或内置）或编辑一个 config */
+    private void editConfig(final CardConfig cfg) {
+        final boolean creating = (cfg == null || cfg.builtin);
+        final CardConfig base = creating ? duplicateOfActive() : cfg;
+
+        LinearLayout box = new LinearLayout(getContext());
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = Ui.dp(16);
+        box.setPadding(pad, Ui.dp(8), pad, Ui.dp(4));
+
+        final EditText nameIn = new EditText(getContext());
+        nameIn.setText(creating ? "" : base.name);
+        nameIn.setHint("例如：雅思词汇");
+        box.addView(small("名字"));
+        box.addView(nameIn);
+
+        final EditText fieldsIn = new EditText(getContext());
+        fieldsIn.setText(fieldsToText(base));
+        fieldsIn.setMinLines(4);
+        box.addView(small("字段（每行一个：字段名 = AI键 = 提示；第一行是卡片正面）"));
+        box.addView(fieldsIn);
+
+        final EditText promptIn = new EditText(getContext());
+        promptIn.setText(base.prompt);
+        promptIn.setMinLines(6);
+        box.addView(small("提示词（可用 {word} 与 {subject}）"));
+        box.addView(promptIn);
+
+        ScrollView sv = new ScrollView(getContext());
+        sv.addView(box);
+        new AlertDialog.Builder(act)
+                .setTitle(creating ? "新建 config" : "编辑 config")
+                .setView(sv)
+                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        CardConfig c = new CardConfig();
+                        c.id = creating ? ("cfg" + System.currentTimeMillis()) : base.id;
+                        c.name = nameIn.getText().toString().trim();
+                        if (c.name.length() == 0) c.name = "未命名 config";
+                        c.noteType = c.name;
+                        c.fields = textToFields(fieldsIn.getText().toString());
+                        c.prompt = promptIn.getText().toString();
+                        c.builtin = false;
+                        store.saveConfig(c);
+                        store.setActiveConfigId(c.id);
+                        refreshConfigCard();
+                        onConfigChanged();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    /** 以内置/当前 config 为模板复制一份，供新建时改 */
+    private CardConfig duplicateOfActive() {
+        CardConfig src = store.activeConfig();
+        CardConfig c = new CardConfig();
+        c.name = "";
+        c.noteType = "";
+        c.prompt = src.prompt;
+        c.fields = new java.util.ArrayList<CardConfig.Field>();
+        for (CardConfig.Field f : src.fields) {
+            c.fields.add(new CardConfig.Field(f.name, f.key, f.hint, f.latex));
+        }
+        return c;
+    }
+
+    private void deleteActiveConfig() {
+        final CardConfig c = store.activeConfig();
+        if (c.builtin) return;
+        new AlertDialog.Builder(act)
+                .setTitle("删除 config")
+                .setMessage("确定删除「" + c.name + "」吗？已经用它做过的卡片不受影响。")
+                .setPositiveButton("删除", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        store.deleteConfig(c.id);
+                        refreshConfigCard();
+                        onConfigChanged();
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void onConfigChanged() {
+        if (act instanceof MainActivity) ((MainActivity) act).onCardConfigChanged();
+    }
+
+    private TextView small(String text) {
+        TextView t = new TextView(getContext());
+        t.setText(text);
+        t.setTextColor(Ui.SUB);
+        t.setTextSize(12.5f);
+        t.setPadding(0, Ui.dp(8), 0, 0);
+        return t;
+    }
+
+    /** 字段对象 -> 可编辑文本（每行：字段名 = AI键 = 提示） */
+    private String fieldsToText(CardConfig c) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < c.fields.size(); i++) {
+            CardConfig.Field f = c.fields.get(i);
+            if (i > 0) sb.append("\n");
+            sb.append(f.name).append(" = ").append(f.key);
+            if (f.hint != null && f.hint.length() > 0) sb.append(" = ").append(f.hint);
+        }
+        return sb.toString();
+    }
+
+    /** 文本 -> 字段对象；AI 键留空时自动生成 */
+    private java.util.List<CardConfig.Field> textToFields(String text) {
+        java.util.List<CardConfig.Field> out = new java.util.ArrayList<CardConfig.Field>();
+        String[] lines = text == null ? new String[0] : text.split("\n");
+        int idx = 0;
+        for (String line : lines) {
+            String s = line.trim();
+            if (s.length() == 0) continue;
+            String[] parts = s.split("=");
+            String name = parts[0].trim();
+            if (name.length() == 0) continue;
+            String key = parts.length > 1 ? parts[1].trim() : "";
+            String hint = parts.length > 2 ? parts[2].trim() : "";
+            if (key.length() == 0 && idx > 0) key = "f" + idx;
+            out.add(new CardConfig.Field(name, key, hint, false));
+            idx++;
+        }
+        if (out.isEmpty()) out = CardConfig.defaultConfig().fields;
+        return out;
     }
 
     private void refreshProviderBtn() {
@@ -515,55 +659,6 @@ public class SettingsView extends LinearLayout {
             @Override public void onClick(View v) { box.toggle(); }
         });
         return row;
-    }
-
-    // ------------------------------------------------------------------ 本机 AnkiDroid
-
-    /** 刷新「本机写入」那一块的勾选状态、说明文字与授权按钮 */
-    public void refreshAnkiDroid() {
-        if (deviceCheck == null) return;
-        android.content.Context c = getContext();
-        boolean installed = AnkiDroidClient.installed(c);
-        boolean granted = AnkiDroidClient.hasPermission(c);
-        boolean ready = installed && granted;
-
-        if (deviceCheck.isChecked() != store.useAnkiDroid()) {
-            deviceCheck.setChecked(store.useAnkiDroid());
-        }
-        if (deviceCheck.isEnabled() != true) deviceCheck.setEnabled(true);
-
-        String state = AnkiDroidClient.status(c);
-        String extra;
-        if (!installed) {
-            extra = "　装一个 AnkiDroid 就能让这台设备独立记卡（下方电脑那套可以完全不填）。";
-        } else if (!granted) {
-            extra = "　点下面的按钮授权后即可本机写入。";
-        } else {
-            extra = "　当前生效：本机 AnkiDroid 写入（不连电脑）。";
-        }
-        deviceTip.setText("AnkiDroid：" + state + extra
-                + (store.useAnkiDroid() ? "" : "　（开关已关，仍走电脑上的 AnkiConnect）"));
-
-        deviceAuthBtn.setVisibility(installed && !granted ? View.VISIBLE : View.GONE);
-    }
-
-    /** 申请 AnkiDroid 的读写权限（授权界面由 AnkiDroid 提供） */
-    private void requestAnkiDroidPermission() {
-        if (!AnkiDroidClient.installed(getContext())) {
-            deviceTip.setText("本机没有 AnkiDroid。想完全脱离电脑的话，先装一个 AnkiDroid（应用商店搜 AnkiDroid 即可）。");
-            return;
-        }
-        if (android.os.Build.VERSION.SDK_INT >= 23) {
-            try {
-                act.requestPermissions(new String[]{AnkiDroidClient.PERMISSION},
-                        AnkiDroidClient.PERM_REQUEST);
-                deviceTip.setText("已向 AnkiDroid 申请权限 —— 请在它的授权界面上点允许。");
-            } catch (Exception e) {
-                deviceTip.setText("申请权限失败：" + e.getMessage());
-            }
-        } else {
-            deviceTip.setText("这个系统版本在安装时就已授权，应该可以直接用。");
-        }
     }
     // ------------------------------------------------------------------ 自动更新
 
@@ -904,42 +999,6 @@ public class SettingsView extends LinearLayout {
                 syncBtn.setEnabled(true);
                 syncStatus.setText(msg + "\n" + AnkiSync.describe(store));
                 syncStatus.setTextColor(color);
-                if (deviceCheck != null) refreshAnkiDroid();
-            }
-        });
-    }
-    private void testAnki() {
-        save();
-        ankiStatus.setText("正在连接（第一次可能要在电脑上点允许）…");
-        ankiStatus.setTextColor(Ui.SUB);
-        testAnkiBtn.setEnabled(false);
-        Th.bg(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    AnkiClient anki = new AnkiClient(store.ankiHost(), store.ankiPort(), store.ankiApiKey());
-                    anki.requestPermission();
-                    final String ver = anki.versionString();
-                    final JSONArray decks = anki.deckNames();
-                    Th.ui(new Runnable() {
-                        @Override
-                        public void run() {
-                            testAnkiBtn.setEnabled(true);
-                            ankiStatus.setText("连接成功 ✓ AnkiConnect v" + ver
-                                    + "，共 " + decks.length() + " 个牌组");
-                            ankiStatus.setTextColor(Ui.GREEN);
-                        }
-                    });
-                } catch (final AnkiClient.AnkiException e) {
-                    Th.ui(new Runnable() {
-                        @Override
-                        public void run() {
-                            testAnkiBtn.setEnabled(true);
-                            ankiStatus.setText("连接失败：" + e.getMessage());
-                            ankiStatus.setTextColor(Ui.RED);
-                        }
-                    });
-                }
             }
         });
     }

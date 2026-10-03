@@ -36,7 +36,7 @@ import net.ankiweb.rsdroid.NativeMethods;
  * 把 Anki 官方 Rust 后端（rslib / librsdroid.so）包成应用能用的形态。
  *
  * 「工具全部内化进 APK」就是靠这个：APK 里带着 librsdroid.so，设备上自己开一个 Anki 收藏库、
- * 自己写卡片、自己跟 AnkiWeb 同步 —— **既不需要电脑，也不需要装 AnkiDroid**。
+ * 自己写卡片、自己跟 AnkiWeb 同步 —— 不需要任何外部客户端。
  *
  * 调用方式：所有后端能力都通过 {@code NativeMethods.runMethodRaw(ptr, service, method, 请求字节)}
  * 用 protobuf 收发。service/method 编号是从后端生成的 GeneratedBackend.kt 里抄来的常量，
@@ -76,10 +76,11 @@ public class AnkiEngine {
     private static final int M_GET_FIELD_NAMES = 16;
     private static final int M_SEARCH_NOTES = 2;
 
-    /** 与电脑端一致：这就是写进 Anki 的笔记类型名 */
+    /** 写进 Anki 的笔记类型名 */
     private static final String NOTETYPE_NAME = CardFormat.MODEL_NAME;
 
-    private long ptr = -1;
+    // 后端句柄是原生指针，**可能为负**（arm64 上实测就是负数），所以只把 0 当作无效
+    private long ptr = 0;
     private boolean collectionOpen;
     private String collectionPath;
 
@@ -128,6 +129,9 @@ public class AnkiEngine {
 
     public String collectionPath() { return collectionPath; }
 
+    /** 调试用：当前后端句柄（<=0 表示没起来） */
+    public long ptrValue() { return ptr; }
+
     public void close() {
         try {
             if (collectionOpen) {
@@ -138,9 +142,9 @@ public class AnkiEngine {
             Log.w(TAG, "关闭收藏库出错：" + e.getMessage());
         } finally {
             collectionOpen = false;
-            if (ptr > 0) {
+            if (ptr != 0) {
                 try { NativeMethods.closeBackend(ptr); } catch (Throwable t) { /* 忽略 */ }
-                ptr = -1;
+                ptr = 0;
             }
         }
     }
@@ -188,7 +192,7 @@ public class AnkiEngine {
 
     /**
      * 用 Anki 的 legacy JSON 建笔记类型（比自己拼 Notetype proto 稳，缺的字段由后端补默认值）。
-     * JSON 结构与电脑端 AnkiConnect 的 createModel 参数一致，保证两边卡片长得一样。
+     * JSON 用 Anki 自己的 legacy 模型结构，缺的字段由后端补默认值。
      */
     public long addNotetypeLegacy(String name, String[] fields, String css,
                                   String qfmt, String afmt) throws EngineException {
@@ -224,12 +228,20 @@ public class AnkiEngine {
         return res.getId();
     }
 
-    /** 保证「专业术语卡」存在（字段名与模板都对得上才复用），返回 notetypeId */
-    public long ensureCardNotetype() throws EngineException {
-        long mid = notetypeIdByName(NOTETYPE_NAME);
+    /** 保证某套 config 对应的笔记类型存在（名字对得上就复用），返回 notetypeId */
+    public long ensureCardNotetype(CardConfig cfg) throws EngineException {
+        if (cfg == null) cfg = CardConfig.defaultConfig();
+        String name = cfg.noteType == null || cfg.noteType.trim().length() == 0
+                ? cfg.name : cfg.noteType.trim();
+        long mid = notetypeIdByName(name);
         if (mid > 0) return mid;
-        return addNotetypeLegacy(NOTETYPE_NAME, CardFormat.FIELDS, CardFormat.CARD_CSS,
-                CardFormat.CARD_FRONT, CardFormat.CARD_BACK);
+        return addNotetypeLegacy(name, cfg.fieldNames(), CardFormat.CARD_CSS,
+                cfg.cardFront(), cfg.cardBack());
+    }
+
+    /** 默认 config 的笔记类型（兼容旧调用） */
+    public long ensureCardNotetype() throws EngineException {
+        return ensureCardNotetype(CardConfig.defaultConfig());
     }
 
     /** 写一张笔记，返回 noteId */
@@ -248,7 +260,7 @@ public class AnkiEngine {
         return res.getNoteId();
     }
 
-    /** 按 Anki 搜索语法查笔记，返回**与 AnkiConnect notesInfo 同构**的 JSON（浏览页两边共用一套渲染） */
+    /** 按 Anki 搜索语法查笔记，返回浏览页统一使用的 JSON 形状 */
     public org.json.JSONArray searchNotes(String query, int limit) throws EngineException {
         java.util.LinkedHashMap<Long, String[]> cache = new java.util.LinkedHashMap<Long, String[]>();
         org.json.JSONArray out = new org.json.JSONArray();
@@ -389,7 +401,7 @@ public class AnkiEngine {
      * 调一个 RPC。返回结果字节；后端报错时抛 EngineException（带后端给的可读消息）。
      */
     private byte[] call(int service, int method, MessageLite req) throws EngineException {
-        if (ptr <= 0) throw new EngineException("内置引擎尚未启动");
+        if (ptr == 0) throw new EngineException("内置引擎尚未启动");
         byte[][] out;
         try {
             out = NativeMethods.runMethodRaw(ptr, service, method, req.toByteArray());

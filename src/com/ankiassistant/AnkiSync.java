@@ -6,13 +6,13 @@ import android.content.Context;
  * 内置引擎与 AnkiWeb 之间的同步。
  *
  * 后端把同步协议整个包了（登录、比对、分块传输、媒体），这里只负责按正确的顺序调用，
- * 以及把"需要全量同步"这种决定交回给用户（和桌面版 Anki 的行为一致）。
+ * 以及把"需要全量同步"这种决定交回给用户（和 Anki 桌面版的行为一致）。
  *
  * 流程：
  *   1. 登录（拿 hkey）—— 只存 hkey，**不存密码**
  *   2. syncStatus：0 无需同步 / 1 普通同步 / 2 需要全量同步
  *   3. 普通同步：syncCollection（顺带同步媒体）
- *   4. 全量同步：必须由用户决定 上传本机 还是 下载云端  → fullUploadOrDownload
+ *   4. 全量同步：必须由用户决定 上传本机 还是 下载云端 → fullUploadOrDownload
  */
 public class AnkiSync {
 

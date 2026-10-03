@@ -1,5 +1,5 @@
 import com.ankiassistant.AiClient;
-import com.ankiassistant.AnkiClient;
+import com.ankiassistant.CardConfig;
 import com.ankiassistant.CardFormat;
 
 import org.json.JSONObject;
@@ -28,7 +28,7 @@ public class SelfTest {
         prompt();
         parseAi();
         fields();
-        anki();
+        config();
         ai();
         templates();
         System.out.println();
@@ -168,57 +168,58 @@ public class SelfTest {
         ok("AI 为 null 时字段仍然齐全", empty.length() == CardFormat.FIELDS.length, empty.toString());
     }
 
-    // ------------------------------------------------------------ AnkiConnect
 
-    static void anki() throws Exception {
-        System.out.println("== AnkiConnect ==");
-        String req = AnkiClient.buildRequest("deckNames", null);
-        JSONObject r = new JSONObject(req);
-        eq("请求含 action", r.optString("action"), "deckNames");
-        eq("请求含 version", r.optInt("version", -1), 6);
-        ok("无 params 时不塞空对象", !r.has("params"), req);
+    // ------------------------------------------------------------ 输出格式 config
 
-        JSONObject p = new JSONObject();
-        p.put("query", "deck:*");
-        JSONObject r2 = new JSONObject(AnkiClient.buildRequest("findNotes", p));
-        eq("params 透传", r2.getJSONObject("params").optString("query"), "deck:*");
+    static void config() throws Exception {
+        System.out.println("== 输出格式 config ==");
+        CardConfig def = CardConfig.defaultConfig();
+        eq("默认 config 字段数", def.fields.size(), 7);
+        eq("默认笔记类型", def.noteType, "专业术语卡");
+        ok("正面模板用第一个字段", def.cardFront().indexOf("{{单词}}") >= 0, def.cardFront());
+        ok("背面含音标行", def.cardBack().indexOf("【音标】") >= 0, "back");
+        ok("背面含公式行", def.cardBack().indexOf("【关联公式/符号】") >= 0, "back");
+        ok("提示词带上了词", def.buildPrompt("epsilon", "物理").indexOf("epsilon") >= 0, "prompt");
+        ok("提示词带上了学科", def.buildPrompt("epsilon", "物理").indexOf("物理") >= 0, "prompt");
+        ok("提示词要求只输出 JSON", def.buildPrompt("x", "y").indexOf("JSON") >= 0, "prompt");
 
-        eq("正常响应返回 result", AnkiClient.parseResponse("{\"result\":[1,2],\"error\":null}").toString(),
-                new org.json.JSONArray("[1,2]").toString());
-        try {
-            AnkiClient.parseResponse("{\"result\":null,\"error\":\"collection is not available\"}");
-            ok("error 抛异常", false, "no exception");
-        } catch (AnkiClient.AnkiException e) {
-            ok("error 抛异常", "collection is not available".equals(e.getMessage()), e.getMessage());
-        }
-        try {
-            AnkiClient.parseResponse("<html>502</html>");
-            ok("非 JSON 抛异常", false, "no exception");
-        } catch (AnkiClient.AnkiException e) {
-            ok("非 JSON 抛异常", true, e.getMessage());
-        }
-        try {
-            AnkiClient.parseResponse("");
-            ok("空响应抛异常", false, "no exception");
-        } catch (AnkiClient.AnkiException e) {
-            ok("空响应抛异常", true, e.getMessage());
-        }
+        // AI 字段 -> 笔记字段（默认 config）
+        JSONObject ai = new JSONObject();
+        ai.put("phonetic", "英 /x/");
+        ai.put("pos", "n");
+        ai.put("definition", "(n) something");
+        ai.put("formula", "\\(a=1\\)");
+        ai.put("confusables", "a /x/ n. 甲");
+        ai.put("chinese", "乙");
+        JSONObject f = CardFormat.noteFieldsFor("epsilon", ai, def);
+        eq("笔记字段数 = config 字段数", f.length(), 7);
+        eq("正面字段=单词", f.optString("单词", ""), "epsilon");
+        eq("音标映射", f.optString("音标", ""), "英 /x/");
+        eq("中文映射", f.optString("中文", ""), "乙");
+        eq("正面的键不来自 AI", f.optString("单词", ""), "epsilon");
 
-        eq("补默认端口", AnkiClient.normalizeBase("192.168.1.7", 8765), "http://192.168.1.7:8765");        eq("保留自定义端口", AnkiClient.normalizeBase("192.168.1.7:9999", 8765), "http://192.168.1.7:9999");
-        eq("保留 http 协议", AnkiClient.normalizeBase("http://192.168.1.7", 8765), "http://192.168.1.7:8765");
-        eq("去掉尾部斜杠与路径", AnkiClient.normalizeBase("http://192.168.1.7:8765/", 8765), "http://192.168.1.7:8765");
-        eq("空值回退本机", AnkiClient.normalizeBase("", 8765), "http://127.0.0.1:8765");
-        eq("https 不被改写", AnkiClient.normalizeBase("https://anki.example.com", 8765), "https://anki.example.com:8765");
-
-        // 新版 AnkiConnect 的 createDeck 参数名是 deck（旧版是 name），两个都要能构造
-        eq("新版建牌组参数=deck",
-                AnkiClient.createDeckParams("NCUK::专业术语", true).optString("deck", ""), "NCUK::专业术语");
-        eq("新版建牌组不带 name",
-                AnkiClient.createDeckParams("NCUK::专业术语", true).has("name"), false);
-        eq("旧版建牌组参数=name",
-                AnkiClient.createDeckParams("NCUK::专业术语", false).optString("name", ""), "NCUK::专业术语");
-        eq("按笔记找卡片用 nid: 查询",
-                AnkiClient.noteCardsQuery(1791016302563L), "nid:1791016302563");
+        // 自定义 config：JSON 往返 + 模板/提示词按自己的字段走
+        CardConfig custom = new CardConfig();
+        custom.id = "cfgtest";
+        custom.name = "雅思词汇";
+        custom.noteType = "雅思词汇";
+        custom.prompt = "给 {word} 出词卡，学科 {subject}，只输出 JSON：\nterm：词\nmeaning：释义";
+        custom.fields.add(new CardConfig.Field("词", "", "", false));
+        custom.fields.add(new CardConfig.Field("释义", "meaning", "中文释义", false));
+        CardConfig round = CardConfig.fromJson(custom.toJson());
+        eq("config 往返：名字", round.name, "雅思词汇");
+        eq("config 往返：字段数", round.fields.size(), 2);
+        eq("config 往返：第二个字段的键", round.fields.get(1).key, "meaning");
+        ok("自定义正面模板", round.cardFront().indexOf("{{词}}") >= 0, round.cardFront());
+        ok("自定义背面含释义行", round.cardBack().indexOf("【释义】") >= 0, "back");
+        ok("自定义提示词替换 {word}", round.buildPrompt("cambridge", "英语").indexOf("cambridge") >= 0, "p");
+        JSONObject ai2 = new JSONObject();
+        ai2.put("term", "忽略");
+        ai2.put("meaning", "剑桥");
+        JSONObject f2 = CardFormat.noteFieldsFor("cambridge", ai2, round);
+        eq("自定义字段数", f2.length(), 2);
+        eq("自定义正面=用户输入", f2.optString("词", ""), "cambridge");
+        eq("自定义释义来自 AI", f2.optString("释义", ""), "剑桥");
     }
 
     // ------------------------------------------------------------ AI 请求
