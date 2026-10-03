@@ -39,6 +39,7 @@ public class MainActivity extends Activity {
     private FrameLayout content;
     private NavItem[] railItems = new NavItem[3];
     private NavItem[] barItems = new NavItem[3];
+    private TextView accountLabel;
     private View ankiDot;
     private TextView ankiLampText;
     private boolean ankiChecking;
@@ -57,6 +58,8 @@ public class MainActivity extends Activity {
         if (getIntent() != null && getIntent().getBooleanExtra("browseProbe", false)) runBrowseProbe();
         if (getIntent() != null && getIntent().getBooleanExtra("configProbe", false)) runConfigProbe();
         CrashHandler.install(this);
+        android.util.Log.i("AnkiAssistant", "ACTIVE config = " + store.activeConfig().name
+                + " id=" + store.activeConfig().id);
         // WebView 读不了 assets 里 1MB 以上的文件（MathJax 就超了），所以起个本机小服务器
         assetServer = new AssetServer(getAssets());
         int port = assetServer.start();
@@ -66,7 +69,7 @@ public class MainActivity extends Activity {
         show(current);
         maybeIntro();
         // 启动就测一次 Anki 连接，侧栏底部那盏灯直接反映真实状态
-        if (rail != null) checkAnkiLamp();
+        if (rail != null) updateSyncLamp();
     }
 
     /**
@@ -109,8 +112,8 @@ public class MainActivity extends Activity {
                 try {
                     CardConfig c = new CardConfig();
                     c.id = "cfgprobe";
-                    c.name = "探针词汇";
-                    c.noteType = "探针词汇";
+                    c.name = "测试格式";
+                    c.noteType = "测试格式";
                     c.prompt = "给 {word} 出一张词卡，学科 {subject}，只输出 JSON：\n"
                             + "term：词条\nmeaning：中文释义\nsentence：例句";
                     c.fields.add(new CardConfig.Field("词条", "", "", false));
@@ -125,7 +128,7 @@ public class MainActivity extends Activity {
                     note.put("词条", "probe-word");
                     note.put("中文释义", "探针释义");
                     note.put("例句", "This is a probe sentence.");
-                    String msg = AnkiBackend.save(MainActivity.this, store, "探针牌组", note,
+                    String msg = AnkiBackend.save(MainActivity.this, store, "测试牌组", note,
                             new String[]{"Probe"});
                     android.util.Log.i("AnkiAssistant", "CONFIG save -> " + msg);
                     android.util.Log.i("AnkiAssistant", "CONFIG SELFTEST PASS");
@@ -217,7 +220,7 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == AnkiDroidClient.PERM_REQUEST) {
 
-            if (rail != null) checkAnkiLamp();
+            if (rail != null) updateSyncLamp();
             if (grantResults != null && grantResults.length > 0
                     && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 android.widget.Toast.makeText(this, "已授权：本机 AnkiDroid 兜底可用",
@@ -325,6 +328,24 @@ public class MainActivity extends Activity {
         topBar.addView(title, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
 
+        // 手机布局没有侧栏，顶栏也给一个账号入口
+        if (isPhone()) {
+            TextView avatar = new TextView(this);
+            avatar.setText("A");
+            avatar.setTextColor(Ui.WHITE);
+            avatar.setTextSize(13);
+            avatar.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            avatar.setGravity(android.view.Gravity.CENTER);
+            avatar.setBackground(Ui.round(Ui.ACCENT, 9));
+            avatar.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { showAccountDialog(); }
+            });
+            LinearLayout.LayoutParams avlp = new LinearLayout.LayoutParams(Ui.dp(28), Ui.dp(28));
+            avlp.rightMargin = Ui.dp(10);
+            avlp.gravity = android.view.Gravity.CENTER_VERTICAL;
+            topBar.addView(avatar, avlp);
+        }
+
         TextView ver = new TextView(this);
         ver.setText(Version.VERSION_TAG);
         ver.setTextColor(Ui.TEXT_DIM);
@@ -391,7 +412,14 @@ public class MainActivity extends Activity {
                 new int[]{0xFFF8FAFD, 0xFFF1F5FB}));
         r.setPadding(Ui.dp(8), Ui.dp(16), Ui.dp(8), Ui.dp(14));
 
-        // ---- 顶部：应用标识（填掉上方那块空白） ----
+        // ---- 顶部：Anki 账号按钮（图标是应用标识；点开登录/注册/同步） ----
+        LinearLayout accountBtn = new LinearLayout(this);
+        accountBtn.setOrientation(LinearLayout.VERTICAL);
+        accountBtn.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
+        accountBtn.setPadding(Ui.dp(4), Ui.dp(4), Ui.dp(4), Ui.dp(4));
+        accountBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { showAccountDialog(); }
+        });
         TextView logo = new TextView(this);
         logo.setText("A");
         logo.setTextColor(Ui.WHITE);
@@ -399,10 +427,21 @@ public class MainActivity extends Activity {
         logo.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         logo.setGravity(android.view.Gravity.CENTER);
         logo.setBackground(Ui.round(Ui.ACCENT, 11));
-        LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(Ui.dp(36), Ui.dp(36));
+        accountBtn.addView(logo, new LinearLayout.LayoutParams(Ui.dp(36), Ui.dp(36)));
+        accountLabel = new TextView(this);
+        accountLabel.setText("登录");
+        accountLabel.setTextColor(Ui.SUB);
+        accountLabel.setTextSize(10.5f);
+        accountLabel.setGravity(android.view.Gravity.CENTER);
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        alp.topMargin = Ui.dp(4);
+        accountBtn.addView(accountLabel, alp);
+        LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         llp.gravity = android.view.Gravity.CENTER_HORIZONTAL;
         llp.bottomMargin = Ui.dp(4);
-        r.addView(logo, llp);
+        r.addView(accountBtn, llp);
 
         View topSpace = new View(this);
         r.addView(topSpace, new LinearLayout.LayoutParams(
@@ -433,7 +472,7 @@ public class MainActivity extends Activity {
         lamp.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
         lamp.setPadding(0, 0, 0, Ui.dp(2));
         lamp.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { checkAnkiLamp(); }
+            @Override public void onClick(View v) { onLampClick(); }
         });
 
         ankiDot = new View(this);
@@ -455,24 +494,176 @@ public class MainActivity extends Activity {
         return r;
     }
 
-    /** 底部状态灯：绿=连得上，红=连不上，黄=正在测 */
-    public void checkAnkiLamp() {
-        if (ankiChecking || ankiDot == null) return;   // 手机端（底栏）没有这盏灯
-        // 内置引擎可用 → 本机就能写，不用去测电脑
-        if (AnkiBackend.useEngine(this, store)) {
-            setAnkiLamp(0xFF22A06B, "本机");
-            ankiChecking = false;
-            return;
+    // ------------------------------------------------------------------ Anki 账号（登录 / 注册 / 同步）
+
+    private boolean isPhone() {
+        return getResources().getConfiguration().smallestScreenWidthDp < 600;
+    }
+
+    /** 左上角头像：Anki 账号弹窗（登录 / 注册 / 同步 / 退出） */
+    public void showAccountDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = Ui.dp(18);
+        box.setPadding(pad, Ui.dp(6), pad, Ui.dp(2));
+
+        TextView st = new TextView(this);
+        st.setText(AnkiSync.describe(store));
+        st.setTextColor(Ui.SUB);
+        st.setTextSize(12.5f);
+        st.setLineSpacing(0, 1.15f);
+        box.addView(st);
+
+        TextView tip = new TextView(this);
+        tip.setText("登录后卡片会同步到 AnkiWeb。密码只用于登录，不会保存在设备上。");
+        tip.setTextColor(Ui.TEXT_DIM);
+        tip.setTextSize(12);
+        tip.setPadding(0, Ui.dp(6), 0, Ui.dp(2));
+        box.addView(tip);
+
+        final android.widget.EditText user = new android.widget.EditText(this);
+        user.setHint("AnkiWeb 邮箱");
+        user.setText(store.ankiWebUser());
+        box.addView(user);
+
+        final android.widget.EditText pass = new android.widget.EditText(this);
+        pass.setHint("密码");
+        pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        box.addView(pass);
+
+        final AlertDialog dlg = new AlertDialog.Builder(this)
+                .setTitle("Anki 账号")
+                .setView(box)
+                .setPositiveButton("登录并同步", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        syncWithAccount(user.getText().toString().trim(),
+                                pass.getText().toString());
+                    }
+                })
+                .setNeutralButton("注册", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        openAnkiWebRegister();
+                    }
+                })
+                .setNegativeButton("关闭", null)
+                .create();
+        dlg.show();
+    }
+
+    /** 用 AnkiWeb 官网的注册页（后端 API 不提供注册） */
+    private void openAnkiWebRegister() {
+        try {
+            startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse("https://ankiweb.net/account/register")));
+        } catch (Exception e) {
+            android.widget.Toast.makeText(this, "打不开浏览器：" + e.getMessage(),
+                    android.widget.Toast.LENGTH_LONG).show();
         }
-        // 本机 AnkiDroid 可直接写入 → 也不用去测电脑
-        if (store.useAnkiDroid() && AnkiDroidClient.ready(this)) {
-            setAnkiLamp(0xFF22A06B, "本机");
-            ankiChecking = false;
-            return;
+    }
+
+    /** 已有 hkey 时点灯同步；没有就弹登录 */
+    private void onLampClick() {
+        if (store.ankiWebHkey().length() == 0) {
+            showAccountDialog();
+        } else {
+            syncWithAccount(null, null);
         }
-        // 内置引擎不可用（也没有 AnkiDroid）→ 这台设备当前没法写卡
-        setAnkiLamp(0xFFE5484D, "不可用");
-        ankiChecking = false;
+    }
+
+    private void syncWithAccount(final String user, final String pass) {
+        android.widget.Toast.makeText(this, "正在同步…", android.widget.Toast.LENGTH_SHORT).show();
+        Th.bg(new Runnable() {
+            @Override public void run() {
+                try {
+                    AnkiSync.Outcome out = AnkiSync.sync(MainActivity.this, store, user, pass, null);
+                    toastUi(out.message);
+                    updateSyncLamp();
+                } catch (final AnkiSync.FullSyncRequired f) {
+                    Th.ui(new Runnable() {
+                        @Override public void run() { askFullSync(user, pass, f.reason); }
+                    });
+                } catch (final Exception e) {
+                    toastUi("同步失败：" + e.getMessage());
+                    updateSyncLamp();
+                }
+            }
+        });
+    }
+
+    /** 需要全量同步时让用户选方向 */
+    private void askFullSync(final String user, final String pass, String reason) {
+        new AlertDialog.Builder(this)
+                .setTitle("需要全量同步")
+                .setMessage(reason + "\n\n上传：用本机的卡片覆盖云端\n下载：用云端覆盖本机"
+                        + "\n\n（本机是刚装的、云端才有你的卡片时，选「下载云端」）")
+                .setPositiveButton("上传本机", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        runFullSync(user, pass, Boolean.TRUE);
+                    }
+                })
+                .setNeutralButton("下载云端", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface d, int w) {
+                        runFullSync(user, pass, Boolean.FALSE);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void runFullSync(final String user, final String pass, final Boolean upload) {
+        android.widget.Toast.makeText(this, upload.booleanValue() ? "正在上传本机收藏库…"
+                : "正在下载云端收藏库…", android.widget.Toast.LENGTH_SHORT).show();
+        Th.bg(new Runnable() {
+            @Override public void run() {
+                try {
+                    AnkiSync.Outcome out = AnkiSync.sync(MainActivity.this, store, user, pass, upload);
+                    toastUi(out.message);
+                } catch (final Exception e) {
+                    toastUi("全量同步失败：" + e.getMessage());
+                }
+                Th.ui(new Runnable() {
+                    @Override public void run() { updateSyncLamp(); }
+                });
+            }
+        });
+    }
+
+    private void toastUi(final String msg) {
+        Th.ui(new Runnable() {
+            @Override public void run() {
+                android.widget.Toast.makeText(MainActivity.this, msg,
+                        android.widget.Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    /** 左下角指示灯：反映 AnkiWeb 登录/同步状态（顺带更新头像下面的小字） */
+    public void updateSyncLamp() {
+        boolean loggedIn = store.ankiWebHkey().length() > 0;
+        long last = store.lastSyncAt();
+        if (accountLabel != null) {
+            accountLabel.setText(loggedIn ? "已登录" : "登录");
+        }
+        if (ankiDot == null) return;
+        if (!loggedIn) {
+            setSyncLamp(0xFFB9C2D0, "未登录");
+        } else if (last <= 0) {
+            setSyncLamp(0xFFF5A623, "待同步");
+        } else {
+            long min = (System.currentTimeMillis() - last) / 60000L;
+            String when = min < 1 ? "刚刚" : (min < 60 ? (min + " 分钟前")
+                    : (min / 60 + " 小时前"));
+            setSyncLamp(0xFF22A06B, when);
+        }
+    }
+
+    private void setSyncLamp(int color, String label) {
+        if (ankiDot != null) ankiDot.setBackground(Ui.round(color, 5));
+        if (ankiLampText != null) {
+            ankiLampText.setText(label);
+            ankiLampText.setTextColor(color == 0xFF22A06B ? color : Ui.TEXT_DIM);
+        }
     }
 
     private void setAnkiLamp(int color, String label) {

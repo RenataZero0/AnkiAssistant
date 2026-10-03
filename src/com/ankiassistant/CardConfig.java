@@ -49,13 +49,21 @@ public class CardConfig {
     public List<Field> fields = new ArrayList<Field>();
     public boolean builtin;
 
+    /**
+     * 这套 config 自己的默认值（不同 config 可以不一样）：
+     * 留空表示沿用应用级默认，这样老用户升级后行为不变。
+     */
+    public String defaultDeck = "";
+    public String defaultTags = "";
+    public String subject = "";
+
     // ------------------------------------------------------------ 内置默认
 
     /** 默认 config：A Level / NCUK IFY 数学物理术语卡（与项目一开始的格式一致） */
     public static CardConfig defaultConfig() {
         CardConfig c = new CardConfig();
         c.id = BUILTIN_ID;
-        c.name = "A Level 术语卡";
+        c.name = "英语词汇";
         c.noteType = "专业术语卡";
         c.builtin = true;
         c.fields.add(new Field("单词", "", "", false));
@@ -106,6 +114,9 @@ public class CardConfig {
         c.noteType = o.optString("noteType", c.name);
         c.prompt = o.optString("prompt", DEFAULT_PROMPT);
         c.builtin = o.optBoolean("builtin", false);
+        c.defaultDeck = o.optString("defaultDeck", "");
+        c.defaultTags = o.optString("defaultTags", "");
+        c.subject = o.optString("subject", "");
         JSONArray fs = o.optJSONArray("fields");
         if (fs != null) {
             for (int i = 0; i < fs.length(); i++) {
@@ -130,6 +141,9 @@ public class CardConfig {
             o.put("noteType", noteType);
             o.put("prompt", prompt);
             o.put("builtin", builtin);
+            o.put("defaultDeck", defaultDeck == null ? "" : defaultDeck);
+            o.put("defaultTags", defaultTags == null ? "" : defaultTags);
+            o.put("subject", subject == null ? "" : subject);
             JSONArray fs = new JSONArray();
             for (Field f : fields) {
                 JSONObject x = new JSONObject();
@@ -161,6 +175,19 @@ public class CardConfig {
             }
         }
         return keys.toArray(new String[0]);
+    }
+
+    /** 生效的默认牌组（本 config 没写就沿用应用级默认） */
+    public String deckOr(String appDefault) {
+        return (defaultDeck != null && defaultDeck.trim().length() > 0) ? defaultDeck.trim() : appDefault;
+    }
+
+    public String tagsOr(String appDefault) {
+        return (defaultTags != null && defaultTags.trim().length() > 0) ? defaultTags.trim() : appDefault;
+    }
+
+    public String subjectOr(String appDefault) {
+        return (subject != null && subject.trim().length() > 0) ? subject.trim() : appDefault;
     }
 
     public String cardFront() {

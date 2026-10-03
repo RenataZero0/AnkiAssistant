@@ -296,8 +296,9 @@ public class CreateView extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         // 牌组/标签的当前值（编辑区里的输入框由 pushMeta() 填充）
-        tagValue = store.defaultTags();
-        deckValue = store.defaultDeck();
+        CardConfig cfg = store.activeConfig();
+        tagValue = cfg.tagsOr(store.defaultTags());
+        deckValue = cfg.deckOr(store.defaultDeck());
         refreshAiBadge();
     }
 
@@ -315,7 +316,7 @@ public class CreateView extends LinearLayout {
     /** 切回本页时刷新（设置可能改过） */
     public void onShown() {
         refreshAiBadge();
-        if (deckValue.length() == 0) deckValue = store.defaultDeck();
+        if (deckValue.length() == 0) deckValue = store.activeConfig().deckOr(store.defaultDeck());
         pushMeta();
     }
 
@@ -361,6 +362,11 @@ public class CreateView extends LinearLayout {
     public void refreshConfig() {
         pushConfig();
         pushTemplates();
+        // 不同 config 有各自的默认值：换 config 后牌组/标签也跟着换
+        CardConfig cfg = store.activeConfig();
+        deckValue = cfg.deckOr(store.defaultDeck());
+        tagValue = cfg.tagsOr(store.defaultTags());
+        pushMeta();
     }
 
     private void pushWord(String word) {
@@ -499,7 +505,7 @@ public class CreateView extends LinearLayout {
                     final String key = store.aiApiKey();
                     final String model = store.aiModelEffective();
                     AiClient.Reply reply = ai.chatDetailed(base, key, model, CardFormat.SYSTEM,
-                            store.activeConfig().buildPrompt(word, store.subject()), !useThinking);
+                            store.activeConfig().buildPrompt(word, store.activeConfig().subjectOr(store.subject())), !useThinking);
                     JSONObject parsed = CardFormat.parseAi(reply.content);
                     boolean retried = false;
                     if (parsed == null) {
@@ -507,7 +513,7 @@ public class CreateView extends LinearLayout {
                         // 长思考容易把输出预算吃掉导致 JSON 截断，这一步实测能救回来。
                         retried = true;
                         reply = ai.chatDetailed(base, key, model, CardFormat.SYSTEM,
-                                store.activeConfig().buildPromptStrict(word, store.subject()), true);
+                                store.activeConfig().buildPromptStrict(word, store.activeConfig().subjectOr(store.subject())), true);
                         parsed = CardFormat.parseAi(reply.content);
                     }
                     final JSONObject parsedF = parsed;
@@ -590,7 +596,7 @@ public class CreateView extends LinearLayout {
             return;
         }
         final String deck = deckValue.trim().length() == 0
-                ? store.defaultDeck() : deckValue.trim();
+                ? store.activeConfig().deckOr(store.defaultDeck()) : deckValue.trim();
         final String tags = tagValue.trim();
 
         status(asDraft ? "正在存草稿…" : "正在读取编辑器内容…", Ui.SUB);

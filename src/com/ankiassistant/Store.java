@@ -43,18 +43,27 @@ public class Store {
 
     /** 所有 config（永远包含内置默认那条） */
     public java.util.List<CardConfig> configs() {
-        java.util.List<CardConfig> out = new java.util.ArrayList<CardConfig>();
-        out.add(CardConfig.defaultConfig());
+        CardConfig builtin = CardConfig.defaultConfig();
+        java.util.List<CardConfig> custom = new java.util.ArrayList<CardConfig>();
         try {
             org.json.JSONArray arr = new org.json.JSONArray(sp.getString("configs", "[]"));
             for (int i = 0; i < arr.length(); i++) {
                 org.json.JSONObject o = arr.optJSONObject(i);
                 if (o == null) continue;
                 CardConfig c = CardConfig.fromJson(o);
-                if (c.id == null || c.id.length() == 0 || CardConfig.BUILTIN_ID.equals(c.id)) continue;
-                out.add(c);
+                if (c.id == null || c.id.length() == 0) continue;
+                if (CardConfig.BUILTIN_ID.equals(c.id)) {
+                    // 用户改过内置那套（字段/提示词/默认值） → 用改过的版本
+                    builtin = c;
+                    builtin.builtin = true;
+                    continue;
+                }
+                custom.add(c);
             }
         } catch (Exception ignored) { }
+        java.util.List<CardConfig> out = new java.util.ArrayList<CardConfig>();
+        out.add(builtin);
+        out.addAll(custom);
         return out;
     }
 
@@ -71,13 +80,13 @@ public class Store {
         put("activeConfigId", id == null ? CardConfig.BUILTIN_ID : id);
     }
 
-    /** 新增或更新一条自定义 config（内置那条不允许改） */
+    /** 新增或更新一条 config（内置那条也能改，改动会存下来覆盖出厂默认） */
     public void saveConfig(CardConfig c) {
-        if (c == null || CardConfig.BUILTIN_ID.equals(c.id)) return;
+        if (c == null || c.id == null || c.id.length() == 0) return;
         org.json.JSONArray arr = new org.json.JSONArray();
         boolean replaced = false;
         for (CardConfig x : configs()) {
-            if (CardConfig.BUILTIN_ID.equals(x.id)) continue;
+            if (CardConfig.BUILTIN_ID.equals(x.id) && !CardConfig.BUILTIN_ID.equals(c.id)) continue;
             if (x.id.equals(c.id)) { arr.put(c.toJson()); replaced = true; }
             else arr.put(x.toJson());
         }
@@ -85,11 +94,13 @@ public class Store {
         put("configs", arr.toString());
     }
 
+    /** 删除自定义 config；对内置那条等价于"恢复出厂默认" */
     public void deleteConfig(String id) {
-        if (id == null || CardConfig.BUILTIN_ID.equals(id)) return;
+        if (id == null) return;
         org.json.JSONArray arr = new org.json.JSONArray();
         for (CardConfig x : configs()) {
-            if (CardConfig.BUILTIN_ID.equals(x.id) || x.id.equals(id)) continue;
+            if (x.id.equals(id)) continue;
+            if (CardConfig.BUILTIN_ID.equals(x.id)) continue;   // 内置那条不写回文件就等于恢复出厂
             arr.put(x.toJson());
         }
         put("configs", arr.toString());

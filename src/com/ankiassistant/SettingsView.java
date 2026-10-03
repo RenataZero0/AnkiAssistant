@@ -27,20 +27,12 @@ public class SettingsView extends LinearLayout {
     private final Store store;
 
     private EditText aiKeyInput, modelInput, urlInput;
-    private EditText deckInput, tagInput, subjectInput;
-    private CheckBox autoSyncBox;
     private Button providerBtn, testAiBtn, saveBtn;
     private TextView aiStatus, updateStatus;
     private ProgressBar aiBusy;
     private CheckBox thinkingCheck;
-    private TextView engineStatus;
-    private Button engineTestBtn;
-    private CheckBox engineCheck;
     private TextView configStatus;
     private Button configPickBtn, configNewBtn, configEditBtn, configDelBtn;
-    private TextView syncStatus;
-    private EditText syncUserInput, syncPassInput;
-    private Button syncBtn;
     private boolean checking;
 
     public SettingsView(MainActivity context) {
@@ -199,43 +191,13 @@ public class SettingsView extends LinearLayout {
         aiLp.bottomMargin = Ui.dp(11);
         col.addView(ai, aiLp);
 
-        // ================= 默认值 =================
-        LinearLayout def = card();
-        def.addView(heading("默认值"));
-        deckInput = input("A Level Pure Mathematics", false);
-        tagInput = input("ALevel::Maths", false);
-        subjectInput = input("给 AI 的学科背景", false);
-        addTo(def, "默认牌组", deckInput);
-        addTo(def, "默认标签", tagInput);
-        addTo(def, "学科背景（影响 AI 释义风格）", subjectInput);
-
-        autoSyncBox = new CheckBox(getContext());
-        autoSyncBox.setTextColor(Ui.TEXT_BODY);
-        autoSyncBox.setTextSize(14);
-        def.addView(checkRow(autoSyncBox, "保存后自动同步到 AnkiWeb 云端"));
-
-        saveBtn = new Button(getContext());
-        saveBtn.setText("保存设置");
-        Ui.primary(saveBtn);
-        saveBtn.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { save(); }
-        });
-        LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        svLp.topMargin = Ui.dp(10);
-        def.addView(saveBtn, svLp);
-
-        LinearLayout.LayoutParams defLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        defLp.bottomMargin = Ui.dp(11);
-        col.addView(def, defLp);
 
         // ================= 输出格式 config =================
         LinearLayout cfgCard = card();
-        cfgCard.addView(heading("输出格式（config）"));
+        cfgCard.addView(heading("输出格式"));
         TextView cfgTip = new TextView(getContext());
-        cfgTip.setText("决定 AI 按什么格式产出、卡片有哪些字段。默认那套是 A Level 数学/物理术语卡；"
-                + "也可以自己新建一套（自定字段与提示词）。");
+        cfgTip.setText("控制 AI 的输出格式与卡片字段，并连带决定该格式使用的默认牌组、标签与学科背景。"
+                + "内置一套通用英语词汇格式；可按学科或考试另建格式，随时切换。");
         cfgTip.setTextColor(Ui.TEXT_DIM);
         cfgTip.setTextSize(12.5f);
         cfgTip.setLineSpacing(0, 1.15f);
@@ -245,7 +207,7 @@ public class SettingsView extends LinearLayout {
         cfgCard.addView(configStatus);
 
         configPickBtn = new Button(getContext());
-        configPickBtn.setText("切换 config");
+        configPickBtn.setText("切换格式");
         Ui.primary(configPickBtn);
         configPickBtn.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { pickConfig(); }
@@ -292,55 +254,6 @@ public class SettingsView extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         cfgCardLp.bottomMargin = Ui.dp(11);
         col.addView(cfgCard, cfgCardLp);
-
-        // ================= 内置引擎（Anki 官方 Rust 后端打包在 APK 里） =================
-        LinearLayout eng = card();
-        eng.addView(heading("AnkiWeb 同步（内置引擎）"));
-        TextView engTip = new TextView(getContext());
-        engTip.setText("卡片写进设备自己的收藏库，并由内置引擎直接与 AnkiWeb 同步。"
-                + "登录一次即可；密码不会保存在设备上。");
-        engTip.setTextColor(Ui.TEXT_DIM);
-        engTip.setTextSize(12.5f);
-        engTip.setLineSpacing(0, 1.15f);
-        eng.addView(engTip);
-
-        engineCheck = new CheckBox(getContext());
-        engineCheck.setTextColor(Ui.TEXT_BODY);
-        engineCheck.setTextSize(14);
-        eng.addView(checkRow(engineCheck, "优先使用内置引擎（写进本机收藏库）"));
-
-        syncUserInput = input("AnkiWeb 邮箱", false);
-        syncPassInput = input("AnkiWeb 密码（只用于登录，不会存下来）", true);
-        addTo(eng, "AnkiWeb 账号", syncUserInput);
-        addTo(eng, "密码", syncPassInput);
-
-        engineStatus = status();
-        eng.addView(engineStatus);
-
-        syncBtn = new Button(getContext());
-        syncBtn.setText("登录并同步到 AnkiWeb");
-        Ui.primary(syncBtn);
-        syncBtn.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { doAnkiWebSync(); }
-        });
-        LinearLayout.LayoutParams syncLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        syncLp.topMargin = Ui.dp(8);
-        eng.addView(syncBtn, syncLp);
-
-        syncStatus = status();
-        eng.addView(syncStatus);
-
-        engineTestBtn = new Button(getContext());
-        engineTestBtn.setText("检测内置引擎");
-        Ui.primary(engineTestBtn);
-        engineTestBtn.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { testEngine(); }
-        });
-        LinearLayout.LayoutParams engLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        engLp.topMargin = Ui.dp(8);
-        eng.addView(engineTestBtn, engLp);
 
         // ================= 更新内容（照 StudyCompanion 的做法，日志打包在 APK 内） =================
         LinearLayout upd = card();
@@ -412,14 +325,7 @@ public class SettingsView extends LinearLayout {
         aiKeyInput.setText(store.aiApiKey());
         modelInput.setText(store.aiModelEffective());
         urlInput.setText(store.aiBaseUrlEffective());
-        deckInput.setText(store.defaultDeck());
-        tagInput.setText(store.defaultTags());
-        subjectInput.setText(store.subject());
-        autoSyncBox.setChecked(store.autoSync());
         if (thinkingCheck != null) thinkingCheck.setChecked(store.aiThinking());
-        if (engineCheck != null) engineCheck.setChecked(store.useEngine());
-        if (syncUserInput != null) syncUserInput.setText(store.ankiWebUser());
-        if (syncStatus != null) syncStatus.setText(AnkiSync.describe(store));
         refreshProviderBtn();
         refreshConfigCard();
     }
@@ -433,14 +339,8 @@ public class SettingsView extends LinearLayout {
         store.setAiApiKey(aiKeyInput.getText().toString());
         store.setAiModel(modelInput.getText().toString());
         store.setAiBaseUrl(urlInput.getText().toString());
-        store.setDefaultDeck(deckInput.getText().toString());
-        store.setDefaultTags(tagInput.getText().toString());
-        store.setSubject(subjectInput.getText().toString());
-        store.setAutoSync(autoSyncBox.isChecked());
         if (thinkingCheck != null) store.setAiThinking(thinkingCheck.isChecked());
-        if (engineCheck != null) store.setUseEngine(engineCheck.isChecked());
-        // 连接信息可能改了，侧栏那盏状态灯跟着复测一次（手机端没有灯，内部会自己忽略）
-        if (act != null) act.checkAnkiLamp();
+        if (act != null) act.updateSyncLamp();
     }
 
     // ------------------------------------------------------------------ 输出格式 config
@@ -475,7 +375,7 @@ public class SettingsView extends LinearLayout {
             if (c.id.equals(activeId)) checked = i;
         }
         new AlertDialog.Builder(act)
-                .setTitle("选择 config")
+                .setTitle("选择输出格式")
                 .setSingleChoiceItems(names, checked, new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d, int which) {
                         store.setActiveConfigId(all.get(which).id);
@@ -500,7 +400,7 @@ public class SettingsView extends LinearLayout {
 
         final EditText nameIn = new EditText(getContext());
         nameIn.setText(creating ? "" : base.name);
-        nameIn.setHint("例如：雅思词汇");
+        nameIn.setHint("例如：雅思词汇、A Level 物理");
         box.addView(small("名字"));
         box.addView(nameIn);
 
@@ -509,6 +409,21 @@ public class SettingsView extends LinearLayout {
         fieldsIn.setMinLines(4);
         box.addView(small("字段（每行一个：字段名 = AI键 = 提示；第一行是卡片正面）"));
         box.addView(fieldsIn);
+
+        final EditText deckIn = new EditText(getContext());
+        deckIn.setText(base.deckOr(store.defaultDeck()));
+        box.addView(small("默认牌组"));
+        box.addView(deckIn);
+
+        final EditText tagsIn = new EditText(getContext());
+        tagsIn.setText(base.tagsOr(store.defaultTags()));
+        box.addView(small("默认标签"));
+        box.addView(tagsIn);
+
+        final EditText subjectIn = new EditText(getContext());
+        subjectIn.setText(base.subjectOr(store.subject()));
+        box.addView(small("学科背景（影响 AI 释义风格）"));
+        box.addView(subjectIn);
 
         final EditText promptIn = new EditText(getContext());
         promptIn.setText(base.prompt);
@@ -519,7 +434,7 @@ public class SettingsView extends LinearLayout {
         ScrollView sv = new ScrollView(getContext());
         sv.addView(box);
         new AlertDialog.Builder(act)
-                .setTitle(creating ? "新建 config" : "编辑 config")
+                .setTitle(creating ? "新建输出格式" : "编辑输出格式")
                 .setView(sv)
                 .setPositiveButton("保存", new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d, int w) {
@@ -530,6 +445,9 @@ public class SettingsView extends LinearLayout {
                         c.noteType = c.name;
                         c.fields = textToFields(fieldsIn.getText().toString());
                         c.prompt = promptIn.getText().toString();
+                        c.defaultDeck = deckIn.getText().toString().trim();
+                        c.defaultTags = tagsIn.getText().toString().trim();
+                        c.subject = subjectIn.getText().toString().trim();
                         c.builtin = false;
                         store.saveConfig(c);
                         store.setActiveConfigId(c.id);
@@ -873,133 +791,6 @@ public class SettingsView extends LinearLayout {
                 })
                 .setNegativeButton("取消", null)
                 .create().show();
-    }
-
-    /** 检测内置引擎：能不能加载 .so、能不能开收藏库、能不能读到牌组 */
-    private void testEngine() {
-        engineTestBtn.setEnabled(false);
-        engineStatus.setText("正在检测内置引擎…");
-        engineStatus.setTextColor(Ui.SUB);
-        Th.bg(new Runnable() {
-            @Override
-            public void run() {
-                AnkiEngine e = null;
-                final StringBuilder msg = new StringBuilder();
-                int color = Ui.GREEN;
-                try {
-                    e = new AnkiEngine();
-                    msg.append("原生库加载成功 ✓ 后端已启动\n");
-                    e.openCollection(getContext());
-                    msg.append("收藏库：" + e.collectionPath() + "\n");
-                    java.util.Map<String, Long> decks = e.deckNames();
-                    msg.append("牌组 " + decks.size() + " 个");
-                    if (!decks.isEmpty()) {
-                        int i = 0;
-                        for (String n : decks.keySet()) {
-                            if (i++ >= 4) { msg.append(" …"); break; }
-                            msg.append("\n　· " + n);
-                        }
-                    }
-                    msg.append("\n\n内置引擎可用：卡片可以完全在本机写入并同步 AnkiWeb");
-                } catch (final Exception ex) {
-                    color = Ui.RED;
-                    msg.append("失败：" + ex.getMessage());
-                    android.util.Log.e("AnkiAssistant", "内置引擎检测失败", ex);
-                } finally {
-                    if (e != null) e.close();
-                }
-                final String text = msg.toString();
-                final int c2 = color;
-                Th.ui(new Runnable() {
-                    @Override public void run() {
-                        engineTestBtn.setEnabled(true);
-                        engineStatus.setText(text);
-                        engineStatus.setTextColor(c2);
-                    }
-                });
-            }
-        });
-    }
-    /** 登录 AnkiWeb 并同步；需要全量同步时弹对话框让用户在"上传/下载"之间选 */
-    private void doAnkiWebSync() {
-        save();
-        final String user = syncUserInput.getText().toString().trim();
-        final String pass = syncPassInput.getText().toString();
-        syncBtn.setEnabled(false);
-        syncStatus.setText("正在登录并同步…（首次同步可能要一会儿）");
-        syncStatus.setTextColor(Ui.SUB);
-        Th.bg(new Runnable() {
-            @Override public void run() {
-                try {
-                    AnkiSync.Outcome out = AnkiSync.sync(getContext(), store, user, pass, null);
-                    syncPassInput.setText("");
-                    showSyncResult(out.message, Ui.GREEN);
-                } catch (final AnkiSync.FullSyncRequired f) {
-                    Th.ui(new Runnable() {
-                        @Override public void run() {
-                            syncBtn.setEnabled(true);
-                            askFullSyncPass2(user, pass, f.reason);
-                        }
-                    });
-                } catch (final Exception e) {
-                    syncPassInput.setText("");
-                    showSyncResult("同步失败：" + e.getMessage(), Ui.RED);
-                }
-            }
-        });
-    }
-
-    /** 第二轮：用户选完上传/下载后真正执行全量同步 */
-    private void askFullSyncPass2(final String user, final String pass, String reason) {
-        syncStatus.setText(reason + "　请选择同步方向：");
-        syncStatus.setTextColor(Ui.AMBER);
-        new AlertDialog.Builder(act)
-                .setTitle("需要全量同步")
-                .setMessage(reason + "\n\n上传：用本机的卡片覆盖云端\n下载：用云端覆盖本机"
-                        + "\n\n（如果本机是刚装的、云端才有你的卡片，选「下载云端」）")
-                .setPositiveButton("上传本机", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
-                        runFullSync(user, pass, Boolean.TRUE);
-                    }
-                })
-                .setNeutralButton("下载云端", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
-                        runFullSync(user, pass, Boolean.FALSE);
-                    }
-                })
-                .setNegativeButton("取消", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
-                        syncStatus.setText("已取消全量同步");
-                        syncStatus.setTextColor(Ui.AMBER);
-                    }
-                })
-                .show();
-    }
-
-    private void runFullSync(final String user, final String pass, final Boolean upload) {
-        syncStatus.setText(upload.booleanValue() ? "正在上传本机收藏库…" : "正在下载云端收藏库…");
-        syncStatus.setTextColor(Ui.SUB);
-        syncBtn.setEnabled(false);
-        Th.bg(new Runnable() {
-            @Override public void run() {
-                try {
-                    AnkiSync.Outcome out = AnkiSync.sync(getContext(), store, user, pass, upload);
-                    showSyncResult(out.message, Ui.GREEN);
-                } catch (final Exception e) {
-                    showSyncResult("全量同步失败：" + e.getMessage(), Ui.RED);
-                }
-            }
-        });
-    }
-
-    private void showSyncResult(final String msg, final int color) {
-        Th.ui(new Runnable() {
-            @Override public void run() {
-                syncBtn.setEnabled(true);
-                syncStatus.setText(msg + "\n" + AnkiSync.describe(store));
-                syncStatus.setTextColor(color);
-            }
-        });
     }
 
     private void testAi() {
