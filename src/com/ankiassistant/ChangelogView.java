@@ -80,12 +80,12 @@ public class ChangelogView {
         // ---- 头部：当前版本 ----
         LinearLayout head = new LinearLayout(act);
         head.setOrientation(LinearLayout.VERTICAL);
-        head.setBackground(Ui.roundTop(Ui.ACCENT_SOFT, 20));
-        head.setPadding(Ui.dp(18), Ui.dp(14), Ui.dp(18), Ui.dp(12));
+        head.setBackgroundColor(Ui.CARD);
+        head.setPadding(Ui.dp(20), Ui.dp(18), Ui.dp(20), Ui.dp(6));
 
         TextView title = new TextView(act);
         title.setText("更新内容");
-        title.setTextSize(19);
+        title.setTextSize(18);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setTextColor(Ui.INK);
         head.addView(title);

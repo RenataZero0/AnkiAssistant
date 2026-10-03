@@ -59,6 +59,7 @@ public class SettingsView extends LinearLayout {
     private TextView syncInfo;
     private LinearLayout skinRow;
     private LinearLayout indexBox;
+    private android.widget.HorizontalScrollView indexScroller;
 
     private TextView heading(String text) {
         TextView t = new TextView(getContext());
@@ -125,8 +126,9 @@ public class SettingsView extends LinearLayout {
                     ViewGroup.LayoutParams.MATCH_PARENT));
         } else {
             indexBox.setPadding(Ui.dp(6), Ui.dp(6), Ui.dp(6), Ui.dp(6));
-            ScrollView ix = new ScrollView(getContext());
+            android.widget.HorizontalScrollView ix = new android.widget.HorizontalScrollView(getContext());
             ix.setHorizontalScrollBarEnabled(false);
+            indexScroller = ix;
             ix.addView(indexBox, new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             outer.addView(ix, new LinearLayout.LayoutParams(
@@ -158,6 +160,8 @@ public class SettingsView extends LinearLayout {
 
         providerBtn = new Button(getContext());
         providerBtn.setText("选择服务商");
+        providerBtn.setSingleLine(true);
+        providerBtn.setEllipsize(android.text.TextUtils.TruncateAt.END);
         Ui.secondary(providerBtn);
         providerBtn.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { pickProvider(); }
@@ -504,10 +508,19 @@ public class SettingsView extends LinearLayout {
         item.setGravity(android.view.Gravity.CENTER_VERTICAL);
         item.setPadding(Ui.dp(13), Ui.dp(9), Ui.dp(10), Ui.dp(9));
         item.setLineSpacing(Ui.dp(2), 1f);
+        item.setSingleLine(true);       // 栏目名不折行（手机上尤其明显）
         item.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 if (scroll != null) scroll.smoothScrollTo(0, Math.max(0, target.getTop() - Ui.dp(6)));
-                styleIndex(indexItems.indexOf(item));
+                int idx = indexItems.indexOf(item);
+                styleIndex(idx);
+                // 横排时把选中的那一项滚到看得见的位置
+                if (indexBox != null && indexBox.getOrientation() == LinearLayout.HORIZONTAL) {
+                    if (indexScroller != null) {
+                        int center = item.getLeft() - (indexScroller.getWidth() - item.getWidth()) / 2;
+                        indexScroller.smoothScrollTo(Math.max(0, center), 0);
+                    }
+                }
             }
         });
         indexItems.add(item);
@@ -838,6 +851,8 @@ public class SettingsView extends LinearLayout {
 
     private void refreshProviderBtn() {
         providerBtn.setText("当前：" + AiClient.presetLabel(store.aiProvider()) + "  ▾");
+        providerBtn.setSingleLine(true);
+        providerBtn.setEllipsize(android.text.TextUtils.TruncateAt.END);
     }
 
     // ------------------------------------------------------------------ 动作
