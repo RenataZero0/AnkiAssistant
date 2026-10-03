@@ -175,7 +175,7 @@ Anki 连不上时，保存会**自动转存到「浏览 → 本地草稿」**，
 ## 五、项目结构
 
 ```
-AnkiAssistantAndroid\
+AnkiAssistant\
 ├─ AnkiAssistant.apk          成品（已签名，可直接安装）
 ├─ CHANGELOG.md               ★更新日志的唯一来源；build.ps1 会拷进 assets\CHANGELOG.md 打包进 APK
 ├─ build.ps1                  编译 APK（aapt2 + javac + d8 + zipalign + apksigner，不需要 Gradle）
@@ -219,13 +219,32 @@ AnkiAssistantAndroid\
 ## 六、重新编译 / 自检
 
 ```powershell
-cd AnkiAssistantAndroid
+cd AnkiAssistant
 powershell -ExecutionPolicy Bypass -File selftest.ps1     # 先跑纯逻辑自检
 powershell -ExecutionPolicy Bypass -File build.ps1        # 再打包
 ```
 
 依赖的绝对路径写在 `build.ps1` 开头（`D:\android-sdk`、`D:\Program Files\Java\jdk-21`），换机器改那两行。
 
+### 仓库与自动更新
+
+- 本工程是**独立仓库**：<https://github.com/RenataZero0/AnkiAssistant>
+  （原先把 Anki 助手放在 StudyCompanion 仓库里，v1.5.0 起拆成独立仓库，两边互不干扰）
+- App 内「设置 → 更新内容 → 检查更新」会匿名读该仓库的**最新 Release**，
+  与本机版本做数值比较（`Updater.compareVersion`：2.1.10 > 2.1.9 这种不会判错），
+  有新版本就弹出说明，点「下载并安装」把 APK 下到 `cache/update/` 并交给系统安装器
+- 仓库地址写在 `Updater.OWNER / Updater.REPO` 两行；仓库是公开的，**查更新与下载都不需要令牌**
+- 只做「检查 + 下载 + 交给系统安装器」，不做静默安装（那需要 root 或设备管理员）
+
+**发版流程（每次迭代）**
+
+1. 改 `CHANGELOG.md` 顶部加一节 `## vX.Y.Z · 日期 —— 标题`
+2. 改 `src\com\ankiassistant\Version.java` 的 `VERSION_TAG` / `VERSION_NUMBER`
+3. `build.ps1` 打包出 `AnkiAssistant.apk`（版本号自动同步到 manifest）
+4. `git commit && git push`（仓库本地已配 `http.proxy=http://127.0.0.1:7890`，公司/校园网环境必需）
+5. 在 GitHub 建 **Release，tag 必须与 `VERSION_TAG` 完全一致**（如 `v1.5.0`），
+   并把 `AnkiAssistant.apk` 作为附件传上去 —— 旧版本才能检查到这次更新
+   （命令行做法见 `tools/` 之外的记录，或直接用网页界面拖拽）
 ### 版本号与更新日志（每次迭代都这么做）
 
 1. 在 `CHANGELOG.md` **顶部**新增一节：`## vX.Y.Z · 日期 —— 一句话标题`，下面用 `### 新增 / 调整 / 修` 分类
