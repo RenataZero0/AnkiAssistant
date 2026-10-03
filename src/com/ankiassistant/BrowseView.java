@@ -226,17 +226,16 @@ public class BrowseView extends LinearLayout {
         for (int i = 0; i < decks.length; i++) items[i + 1] = decks[i];
         int checked = 0;
         for (int i = 0; i < decks.length; i++) if (decks[i].equals(selectedDeck)) checked = i + 1;
-        new android.app.AlertDialog.Builder(act)
-                .setTitle("选择牌组")
-                .setSingleChoiceItems(items, checked, new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int which) {
+        new DialogUi.Builder(act)
+                .title("选择牌组")
+                .choices(items, checked, new DialogUi.Picker() {
+                    @Override public void onPick(int which) {
                         selectedDeck = which == 0 ? "" : items[which];
                         deckBtn.setText(which == 0 ? "全部牌组 ▾" : selectedDeck + " ▾");
-                        d.dismiss();
                         query();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .negative("取消", null)
                 .show();
     }
 
@@ -503,11 +502,12 @@ public class BrowseView extends LinearLayout {
     private void confirmDelete() {
         if (currentNoteId < 0) return;
         final long id = currentNoteId;
-        new android.app.AlertDialog.Builder(act)
-                .setTitle("删除卡片")
-                .setMessage("从本机收藏库删除这张卡片？（下次同步会同步到 AnkiWeb）")
-                .setPositiveButton("删除", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
+        new DialogUi.Builder(act)
+                .title("删除卡片")
+                .message("从本机收藏库删除这张卡片。下次同步时云端也会一并删除。")
+                .negative("取消", null)
+                .positive("删除", new Runnable() {
+                    @Override public void run() {
                         Th.bg(new Runnable() {
                             @Override public void run() {
                                 try {
@@ -532,7 +532,6 @@ public class BrowseView extends LinearLayout {
                         });
                     }
                 })
-                .setNegativeButton("取消", null)
                 .show();
     }
 
@@ -708,16 +707,16 @@ public class BrowseView extends LinearLayout {
 
     private void confirmClearDrafts() {
         if (store.drafts().length() == 0) return;
-        new android.app.AlertDialog.Builder(act)
-                .setTitle("清空草稿")
-                .setMessage("确定清空全部本地草稿？清空后无法恢复。")
-                .setPositiveButton("清空", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
+        new DialogUi.Builder(act)
+                .title("清空草稿")
+                .message("确定清空全部本地草稿？清空后无法恢复。")
+                .negative("取消", null)
+                .positive("清空", new Runnable() {
+                    @Override public void run() {
                         store.clearDrafts();
                         renderDrafts();
                     }
                 })
-                .setNegativeButton("取消", null)
                 .show();
     }
 

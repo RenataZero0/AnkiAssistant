@@ -682,18 +682,17 @@ public class CreateView extends LinearLayout {
                         public void run() {
                             status("共 " + items.length + " 个牌组", Ui.TEXT_DIM);
                             if (items.length == 0) return;
-                            AlertDialog d = new AlertDialog.Builder(act)
-                                    .setTitle("选择牌组")
-                                    .setItems(items, new DialogInterface.OnClickListener() {
+                            new DialogUi.Builder(act)
+                                    .title("选择牌组")
+                                    .choices(items, -1, new DialogUi.Picker() {
                                         @Override
-                                        public void onClick(DialogInterface dialog, int which) {
+                                        public void onPick(int which) {
                                             deckValue = items[which];
                                             js("setDeck(" + JSONObject.quote(items[which]) + ")");
                                         }
                                     })
-                                    .setNegativeButton("取消", null)
-                                    .create();
-                            d.show();
+                                    .negative("取消", null)
+                                    .show();
                         }
                     });
                 } catch (final Exception e) {

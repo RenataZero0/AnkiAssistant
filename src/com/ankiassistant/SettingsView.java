@@ -349,6 +349,7 @@ public class SettingsView extends LinearLayout {
         col.addView(upd, updLp);
         addIndex("更新内容", upd);
 
+
         loadValues();
         attachScrollSpy();
     }
@@ -462,17 +463,16 @@ public class SettingsView extends LinearLayout {
             names[i] = c.name + (c.builtin ? "（内置）" : "");
             if (c.id.equals(activeId)) checked = i;
         }
-        new AlertDialog.Builder(act)
-                .setTitle("选择输出格式")
-                .setSingleChoiceItems(names, checked, new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int which) {
+        new DialogUi.Builder(act)
+                .title("选择输出格式")
+                .choices(names, checked, new DialogUi.Picker() {
+                    @Override public void onPick(int which) {
                         store.setActiveConfigId(all.get(which).id);
-                        d.dismiss();
                         refreshConfigCard();
                         onConfigChanged();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .negative("取消", null)
                 .show();
     }
 
@@ -521,11 +521,11 @@ public class SettingsView extends LinearLayout {
 
         ScrollView sv = new ScrollView(getContext());
         sv.addView(box);
-        new AlertDialog.Builder(act)
-                .setTitle(creating ? "新建输出格式" : "编辑输出格式")
-                .setView(sv)
-                .setPositiveButton("保存", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
+        new DialogUi.Builder(act)
+                .title(creating ? "新建输出格式" : "编辑输出格式")
+                .content(sv)
+                .positive("保存", new Runnable() {
+                    @Override public void run() {
                         CardConfig c = new CardConfig();
                         c.id = creating ? ("cfg" + System.currentTimeMillis()) : base.id;
                         c.name = nameIn.getText().toString().trim();
@@ -543,7 +543,7 @@ public class SettingsView extends LinearLayout {
                         onConfigChanged();
                     }
                 })
-                .setNegativeButton("取消", null)
+                .negative("取消", null)
                 .show();
     }
 
@@ -564,23 +564,26 @@ public class SettingsView extends LinearLayout {
     private void deleteActiveConfig() {
         final CardConfig c = store.activeConfig();
         if (c.builtin) return;
-        new AlertDialog.Builder(act)
-                .setTitle("删除 config")
-                .setMessage("确定删除「" + c.name + "」吗？已经用它做过的卡片不受影响。")
-                .setPositiveButton("删除", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
-                        store.deleteConfig(c.id);
+        final CardConfig target = c;
+        new DialogUi.Builder(act)
+                .title("删除输出格式")
+                .message("确定删除「" + c.name + "」吗？用它做过的卡片不受影响。")
+                .negative("取消", null)
+                .positive("删除", new Runnable() {
+                    @Override public void run() {
+                        store.deleteConfig(target.id);
                         refreshConfigCard();
                         onConfigChanged();
                     }
                 })
-                .setNegativeButton("取消", null)
                 .show();
     }
 
     private void onConfigChanged() {
         if (act instanceof MainActivity) ((MainActivity) act).onCardConfigChanged();
     }
+
+
 
     private TextView small(String text) {
         TextView t = new TextView(getContext());
@@ -766,13 +769,12 @@ public class SettingsView extends LinearLayout {
                     ViewGroup.LayoutParams.MATCH_PARENT, finalH));
         }
 
-        final AlertDialog dlg = new AlertDialog.Builder(act)
-                .setView(root)
-                .setPositiveButton("下载并安装", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) { downloadAndInstall(rel); }
-                })
-                .setNeutralButton("打开仓库", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
+        new DialogUi.Builder(act)
+                .content(root)
+                .wide()
+                .negative("稍后", null)
+                .neutral("打开仓库", new Runnable() {
+                    @Override public void run() {
                         try {
                             Intent web = new Intent(Intent.ACTION_VIEW,
                                     android.net.Uri.parse(rel.pageUrl.length() > 0
@@ -783,16 +785,10 @@ public class SettingsView extends LinearLayout {
                         }
                     }
                 })
-                .setNegativeButton("稍后", null)
-                .create();
-        dlg.show();
-        android.view.Window w = dlg.getWindow();
-        if (w != null) {
-            // 高度交给内容决定（说明区的最终高度已在显示前按内容量好）
-            w.setLayout((int) (getResources().getDisplayMetrics().widthPixels * 0.94),
-                    ViewGroup.LayoutParams.WRAP_CONTENT);
-            w.setBackgroundDrawable(Ui.round(Ui.WHITE, 14));
-        }
+                .positive("下载并安装", new Runnable() {
+                    @Override public void run() { downloadAndInstall(rel); }
+                })
+                .show();
     }
 
     private void downloadAndInstall(final Updater.Release rel) {
@@ -852,11 +848,11 @@ public class SettingsView extends LinearLayout {
             labels[i] = AiClient.presetLabel(ids[i]);
         }
         final String oldProvider = store.aiProvider();
-        new AlertDialog.Builder(act)
-                .setTitle("选择 AI 服务商")
-                .setItems(labels, new DialogInterface.OnClickListener() {
+        new DialogUi.Builder(act)
+                .title("选择 AI 服务商")
+                .choices(labels, -1, new DialogUi.Picker() {
                     @Override
-                    public void onClick(DialogInterface dialog, int which) {
+                    public void onPick(int which) {
                         // 先把当前这把 Key 存回旧服务商名下，再切过去并带出新服务商自己的 Key
                         store.setAiApiKeyFor(oldProvider, aiKeyInput.getText().toString());
                         String id = ids[which];
@@ -877,8 +873,8 @@ public class SettingsView extends LinearLayout {
                         aiStatus.setTextColor(Ui.AMBER);
                     }
                 })
-                .setNegativeButton("取消", null)
-                .create().show();
+                .negative("取消", null)
+                .show();
     }
 
     private void testAi() {

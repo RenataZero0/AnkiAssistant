@@ -689,55 +689,140 @@ public class MainActivity extends Activity {
         return getResources().getConfiguration().smallestScreenWidthDp < 600;
     }
 
-    /** 左上角头像：Anki 账号弹窗（登录 / 注册 / 同步 / 退出） */
+    /** 左上角头像：Anki 账号弹窗（未登录=登录/注册；已登录=账号信息 + 立即同步 + 登出） */
     public void showAccountDialog() {
+        final boolean loggedIn = store.ankiWebHkey().length() > 0;
+
+        // ---------------- 已登录：只显示账号身份与登出，不再出现密码框 ----------------
+        if (loggedIn) {
+            LinearLayout box = new LinearLayout(this);
+            box.setOrientation(LinearLayout.VERTICAL);
+
+            LinearLayout card = new LinearLayout(this);
+            card.setOrientation(LinearLayout.HORIZONTAL);
+            card.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            card.setBackground(Ui.round(0xFFF6F9FE, 16));
+            card.setPadding(Ui.dp(14), Ui.dp(14), Ui.dp(14), Ui.dp(14));
+            TextView avatar = new TextView(this);
+            avatar.setText("A");
+            avatar.setTextColor(Ui.WHITE);
+            avatar.setTextSize(20);
+            avatar.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            avatar.setGravity(android.view.Gravity.CENTER);
+            avatar.setBackground(Ui.round(Ui.ACCENT, 12));
+            card.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(46), Ui.dp(46)));
+
+            LinearLayout info = new LinearLayout(this);
+            info.setOrientation(LinearLayout.VERTICAL);
+            info.setPadding(Ui.dp(12), 0, 0, 0);
+            TextView name = new TextView(this);
+            String mail = store.ankiWebUser();
+            name.setText(mail.length() > 0 ? mail : "已登录 AnkiWeb");
+            name.setTextColor(Ui.INK);
+            name.setTextSize(15);
+            name.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            info.addView(name);
+            TextView sub = new TextView(this);
+            sub.setText("AnkiWeb 账号"
+                    + (store.syncEndpoint().length() > 0 ? "　·　" + hostOf(store.syncEndpoint()) : ""));
+            sub.setTextColor(Ui.TEXT_DIM);
+            sub.setTextSize(12);
+            sub.setPadding(0, Ui.dp(3), 0, 0);
+            info.addView(sub);
+            card.addView(info, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            box.addView(card);
+
+            TextView state = new TextView(this);
+            state.setText(AnkiSync.describe(store));
+            state.setTextColor(Ui.SUB);
+            state.setTextSize(12.5f);
+            state.setLineSpacing(Ui.dp(3), 1f);
+            state.setPadding(Ui.dp(2), Ui.dp(12), 0, 0);
+            box.addView(state);
+
+            new DialogUi.Builder(this)
+                    .title("Anki 账号")
+                    .content(box)
+                    .negative("登出", new Runnable() {
+                        @Override public void run() { confirmLogout(); }
+                    })
+                    .positive("立即同步", new Runnable() {
+                        @Override public void run() { syncWithAccount(null, null); }
+                    })
+                    .show();
+            return;
+        }
+
+        // ---------------- 未登录：邮箱 + 密码 + 注册 ----------------
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        int pad = Ui.dp(18);
-        box.setPadding(pad, Ui.dp(6), pad, Ui.dp(2));
-
-        TextView st = new TextView(this);
-        st.setText(AnkiSync.describe(store));
-        st.setTextColor(Ui.SUB);
-        st.setTextSize(12.5f);
-        st.setLineSpacing(0, 1.15f);
-        box.addView(st);
 
         TextView tip = new TextView(this);
         tip.setText("登录后卡片会同步到 AnkiWeb。密码只用于登录，不会保存在设备上。");
         tip.setTextColor(Ui.TEXT_DIM);
-        tip.setTextSize(12);
-        tip.setPadding(0, Ui.dp(6), 0, Ui.dp(2));
+        tip.setTextSize(12.5f);
+        tip.setLineSpacing(Ui.dp(3), 1f);
         box.addView(tip);
 
         final android.widget.EditText user = new android.widget.EditText(this);
         user.setHint("AnkiWeb 邮箱");
         user.setText(store.ankiWebUser());
-        box.addView(user);
+        user.setSingleLine(true);
+        Ui.field(user);
+        box.addView(DialogUi.label(this, "邮箱"));
+        box.addView(DialogUi.inputWrap(this, user));
 
         final android.widget.EditText pass = new android.widget.EditText(this);
         pass.setHint("密码");
+        pass.setSingleLine(true);
         pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        box.addView(pass);
+        Ui.field(pass);
+        box.addView(DialogUi.label(this, "密码"));
+        box.addView(DialogUi.inputWrap(this, pass));
 
-        final AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("Anki 账号")
-                .setView(box)
-                .setPositiveButton("登录并同步", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
+        new DialogUi.Builder(this)
+                .title("登录 AnkiWeb")
+                .content(box)
+                .neutral("注册账号", new Runnable() {
+                    @Override public void run() { openAnkiWebRegister(); }
+                })
+                .negative("取消", null)
+                .positive("登录并同步", new Runnable() {
+                    @Override public void run() {
                         syncWithAccount(user.getText().toString().trim(),
                                 pass.getText().toString());
                     }
                 })
-                .setNeutralButton("注册", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
-                        openAnkiWebRegister();
+                .show();
+    }
+
+    /** 从同步端点里取出主机名，给账号卡做副标题用 */
+    private static String hostOf(String url) {
+        try {
+            java.net.URL u = new java.net.URL(url);
+            return u.getHost();
+        } catch (Exception e) {
+            return url;
+        }
+    }
+
+    /** 登出前确认 */
+    private void confirmLogout() {
+        new DialogUi.Builder(this)
+                .title("登出 AnkiWeb")
+                .message("登出后本机卡片仍在，只是不再与云端同步；设备上保存的登录密钥会被删除。")
+                .negative("取消", null)
+                .positive("登出", new Runnable() {
+                    @Override public void run() {
+                        AnkiSync.logout(store);
+                        updateSyncLamp();
+                        android.widget.Toast.makeText(MainActivity.this, "已登出 AnkiWeb",
+                                android.widget.Toast.LENGTH_SHORT).show();
                     }
                 })
-                .setNegativeButton("关闭", null)
-                .create();
-        dlg.show();
+                .show();
     }
 
     /** 用 AnkiWeb 官网的注册页（后端 API 不提供注册） */
@@ -782,21 +867,17 @@ public class MainActivity extends Activity {
 
     /** 需要全量同步时让用户选方向 */
     private void askFullSync(final String user, final String pass, String reason) {
-        new AlertDialog.Builder(this)
-                .setTitle("需要全量同步")
-                .setMessage(reason + "\n\n上传：用本机的卡片覆盖云端\n下载：用云端覆盖本机"
-                        + "\n\n（本机是刚装的、云端才有你的卡片时，选「下载云端」）")
-                .setPositiveButton("上传本机", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
-                        runFullSync(user, pass, Boolean.TRUE);
-                    }
+        new DialogUi.Builder(this)
+                .title("需要全量同步")
+                .message(reason + "\n\n上传：用本机的卡片覆盖云端\n下载：用云端覆盖本机"
+                        + "\n\n本机刚装好、云端才有卡片时，选「下载云端」。")
+                .negative("取消", null)
+                .neutral("上传本机", new Runnable() {
+                    @Override public void run() { runFullSync(user, pass, Boolean.TRUE); }
                 })
-                .setNeutralButton("下载云端", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface d, int w) {
-                        runFullSync(user, pass, Boolean.FALSE);
-                    }
+                .positive("下载云端", new Runnable() {
+                    @Override public void run() { runFullSync(user, pass, Boolean.FALSE); }
                 })
-                .setNegativeButton("取消", null)
                 .show();
     }
 
@@ -921,27 +1002,21 @@ public class MainActivity extends Activity {
 
     private void maybeIntro() {
         if (store.introShown()) return;
-        AlertDialog d = new AlertDialog.Builder(this)
-                .setTitle("三步开始使用")
-                .setMessage("1. 设置 → AnkiWeb 同步：填邮箱和密码，点「登录并同步」"
-                        + "（首次会问你上传还是下载，云端已有卡片就选下载）\n\n"
-                        + "2. 回到制卡页输入单词 → 点「AI 填充」→ 逐项检查后「保存到 Anki」\n\n"
-                        + "3. 卡片进本机收藏库，之后点同步即可推到 AnkiWeb 云端")
-                .setPositiveButton("去设置", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
+        new DialogUi.Builder(this)
+                .title("三步开始使用")
+                .message("1. 点左上角头像登录 AnkiWeb（云端已有卡片就选「下载云端」）\n\n"
+                        + "2. 制卡页输入单词 → 点「AI 填充」→ 逐项检查后「保存到 Anki」\n\n"
+                        + "3. 卡片进本机收藏库，之后点头像里的「立即同步」推到云端")
+                .negative("直接开始", new Runnable() {
+                    @Override public void run() { store.setIntroShown(true); }
+                })
+                .positive("去登录", new Runnable() {
+                    @Override public void run() {
                         store.setIntroShown(true);
-                        show(TAB_SETTINGS);
+                        showAccountDialog();
                     }
                 })
-                .setNegativeButton("直接开始", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        store.setIntroShown(true);
-                    }
-                })
-                .create();
-        d.show();
+                .show();
     }
 
     // ------------------------------------------------------------------ 导航项

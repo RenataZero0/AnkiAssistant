@@ -1,6 +1,7 @@
 package com.ankiassistant;
 
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.text.SpannableString;
@@ -42,12 +43,11 @@ public class ChangelogView {
      * 拉不到就用缓存 / APK 内置副本，并在标题下写明来源与原因。
      */
     public static void show(final android.app.Activity act) {
-        final AlertDialog busy = new AlertDialog.Builder(act)
-                .setTitle("更新内容")
-                .setMessage("正在获取最新更新日志…")
-                .setCancelable(false)
-                .create();
-        busy.show();
+        final Dialog busy = new DialogUi.Builder(act)
+                .title("更新内容")
+                .message("正在获取最新更新日志…")
+                .show();
+        busy.setCancelable(false);
         Th.bg(new Runnable() {
             @Override public void run() {
                 final String[] err = new String[1];
@@ -65,22 +65,22 @@ public class ChangelogView {
     private static void showNow(final android.app.Activity act, String fetchError) {
         String md = Changelog.local(act);
         if (md == null || md.trim().length() == 0) {
-            new AlertDialog.Builder(act)
-                    .setTitle("更新日志")
-                    .setMessage("APK 里没有找到 CHANGELOG.md（构建时没打包进去？）")
-                    .setPositiveButton("知道了", null)
+            new DialogUi.Builder(act)
+                    .title("更新日志")
+                    .message("APK 里没有找到 CHANGELOG.md（构建时没打包进去？）")
+                    .positive("知道了", null)
                     .show();
             return;
         }
 
         LinearLayout root = new LinearLayout(act);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Ui.WHITE);
+        root.setBackground(Ui.round(Ui.WHITE, 20));
 
         // ---- 头部：当前版本 ----
         LinearLayout head = new LinearLayout(act);
         head.setOrientation(LinearLayout.VERTICAL);
-        head.setBackground(Ui.round(Ui.ACCENT_SOFT, 0));
+        head.setBackground(Ui.roundTop(Ui.ACCENT_SOFT, 20));
         head.setPadding(Ui.dp(18), Ui.dp(14), Ui.dp(18), Ui.dp(12));
 
         TextView title = new TextView(act);
@@ -200,16 +200,18 @@ public class ChangelogView {
         root.addView(footer, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        final AlertDialog dlg = new AlertDialog.Builder(act).setView(root).create();
+        final Dialog[] holder = new Dialog[1];
         close.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { dlg.dismiss(); }
+            @Override public void onClick(View v) {
+                if (holder[0] != null) holder[0].dismiss();
+            }
         });
-        dlg.show();
-        Window w = dlg.getWindow();
+        Dialog made = new DialogUi.Builder(act).content(root).wide().show();
+        holder[0] = made;
+        Window w = made.getWindow();
         if (w != null) {
             DisplayMetrics dm = act.getResources().getDisplayMetrics();
-            w.setLayout((int) (dm.widthPixels * 0.94), (int) (dm.heightPixels * 0.88));
-            w.setBackgroundDrawable(Ui.round(Ui.WHITE, 14));
+            w.setLayout((int) (dm.widthPixels * 0.92), (int) (dm.heightPixels * 0.86));
         }
     }
 

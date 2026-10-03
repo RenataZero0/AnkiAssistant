@@ -54,6 +54,15 @@ public class Ui {
     }
 
     /** 描边圆角背景 */
+    /** 只有上面两个角是圆的（弹窗里的软色头部用） */
+    public static GradientDrawable roundTop(int color, float radiusDp) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(color);
+        float r = dp(radiusDp);
+        g.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        return g;
+    }
+
     public static GradientDrawable roundStroke(int color, int stroke, float radiusDp) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
