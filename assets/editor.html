@@ -17,7 +17,13 @@
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
     font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
                  "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 16px; }
-  body { padding-bottom: 14px; }
+  /* 编辑区撑满时，把「牌组/标签/保存」那一行推到页面底部，
+     否则内容短的时候它下面会留出一整条空白（就是用户看到的那道间隔）。 */
+  html, body { min-height: 100%; }
+  body { padding-bottom: 14px; display: flex; flex-direction: column;
+         min-height: 100vh; }
+  #editPane { flex: 1 0 auto; }
+  #metaPane { margin-top: auto; }
 
   /* ---------- 顶部标签 + 工具栏 ---------- */
   /* 两者放进同一个 sticky 容器：以前是两个 sticky 元素用 top:48px 硬拼，
