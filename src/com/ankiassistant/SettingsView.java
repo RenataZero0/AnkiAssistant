@@ -37,6 +37,8 @@ public class SettingsView extends LinearLayout {
     private CheckBox deviceCheck;
     private TextView deviceTip;
     private Button deviceAuthBtn;
+    private TextView engineStatus;
+    private Button engineTestBtn;
     private boolean checking;
 
     public SettingsView(MainActivity context) {
@@ -305,6 +307,32 @@ public class SettingsView extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         defLp.bottomMargin = Ui.dp(11);
         col.addView(def, defLp);
+
+        // ================= 内置引擎（Anki 官方 Rust 后端打包在 APK 里） =================
+        LinearLayout eng = card();
+        eng.addView(heading("内置引擎（不需要 AnkiDroid，也不需要电脑）"));
+        TextView engTip = new TextView(getContext());
+        engTip.setText("APK 里带着 Anki 官方的 Rust 后端（rslib/rsdroid，AGPL-3.0）。"
+                + "开启后卡片写进设备自己的收藏库，并由它直接和 AnkiWeb 同步 —— "
+                + "既不用装 AnkiDroid，也不用电脑开着 Anki。");
+        engTip.setTextColor(Ui.TEXT_DIM);
+        engTip.setTextSize(12.5f);
+        engTip.setLineSpacing(0, 1.15f);
+        eng.addView(engTip);
+
+        engineStatus = status();
+        eng.addView(engineStatus);
+
+        engineTestBtn = new Button(getContext());
+        engineTestBtn.setText("检测内置引擎");
+        Ui.primary(engineTestBtn);
+        engineTestBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { testEngine(); }
+        });
+        LinearLayout.LayoutParams engLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        engLp.topMargin = Ui.dp(8);
+        eng.addView(engineTestBtn, engLp);
 
         // ================= 更新内容（照 StudyCompanion 的做法，日志打包在 APK 内） =================
         LinearLayout upd = card();
@@ -721,6 +749,51 @@ public class SettingsView extends LinearLayout {
                 .create().show();
     }
 
+    /** 检测内置引擎：能不能加载 .so、能不能开收藏库、能不能读到牌组 */
+    private void testEngine() {
+        engineTestBtn.setEnabled(false);
+        engineStatus.setText("正在检测内置引擎…");
+        engineStatus.setTextColor(Ui.SUB);
+        Th.bg(new Runnable() {
+            @Override
+            public void run() {
+                AnkiEngine e = null;
+                final StringBuilder msg = new StringBuilder();
+                int color = Ui.GREEN;
+                try {
+                    e = new AnkiEngine();
+                    msg.append("原生库加载成功 ✓ 后端已启动\n");
+                    e.openCollection(getContext());
+                    msg.append("收藏库：" + e.collectionPath() + "\n");
+                    java.util.Map<String, Long> decks = e.deckNames();
+                    msg.append("牌组 " + decks.size() + " 个");
+                    if (!decks.isEmpty()) {
+                        int i = 0;
+                        for (String n : decks.keySet()) {
+                            if (i++ >= 4) { msg.append(" …"); break; }
+                            msg.append("\n　· " + n);
+                        }
+                    }
+                    msg.append("\n\n内置引擎可用：卡片可以完全在本机写入并同步 AnkiWeb");
+                } catch (final Exception ex) {
+                    color = Ui.RED;
+                    msg.append("失败：" + ex.getMessage());
+                    android.util.Log.e("AnkiAssistant", "内置引擎检测失败", ex);
+                } finally {
+                    if (e != null) e.close();
+                }
+                final String text = msg.toString();
+                final int c2 = color;
+                Th.ui(new Runnable() {
+                    @Override public void run() {
+                        engineTestBtn.setEnabled(true);
+                        engineStatus.setText(text);
+                        engineStatus.setTextColor(c2);
+                    }
+                });
+            }
+        });
+    }
     private void testAnki() {
         save();
         ankiStatus.setText("正在连接（第一次可能要在电脑上点允许）…");

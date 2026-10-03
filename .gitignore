@@ -9,3 +9,5 @@ desktop.ini
 .DS_Store
 
 tools/lib/
+# 内置 Anki 引擎的原生库（37 MB×2，用 tools\BUILD_ENGINE.md 的方法自行编译）
+tools/lib/jni/

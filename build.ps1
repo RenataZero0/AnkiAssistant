@@ -88,9 +88,19 @@ Write-Host "[2/7] aapt2 link (manifest + resources + assets) ..."
 if ($LASTEXITCODE -ne 0) { throw "aapt2 link failed" }
 
 Write-Host "[3/7] javac ..."
-$srcs = @(Get-ChildItem "$here\src" -Recurse -Filter *.java | ForEach-Object { $_.FullName })
-$gen  = @(Get-ChildItem "$out\gen" -Recurse -Filter *.java -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
-& "$JDK\bin\javac.exe" --release 8 -encoding UTF-8 -nowarn -cp $AJAR -d "$out\classes" @($srcs + $gen)
+# gen\ = protobuf(javalite) classes generated from the anki .proto files (built-in engine needs them)
+# tools\lib\protobuf-javalite.jar = runtime for those classes
+# NOTE: nearly 600 source files: a flat command line exceeds the Windows 8191 limit,
+#       so the file list goes into a javac @argfile.
+$srcs    = @(Get-ChildItem "$here\src" -Recurse -Filter *.java | ForEach-Object { $_.FullName })
+$gensrc  = @(Get-ChildItem "$here\gen" -Recurse -Filter *.java -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+$gen     = @(Get-ChildItem "$out\gen" -Recurse -Filter *.java -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+$proto   = "$here\tools\lib\protobuf-javalite.jar"
+$cpj     = $AJAR
+if (Test-Path $proto) { $cpj = "$AJAR;$proto" }
+$argfile = "$out\javac.args"
+($srcs + $gensrc + $gen) | ForEach-Object { '"' + ($_ -replace '\\','/') + '"' } | Out-File $argfile -Encoding ascii
+& "$JDK\bin\javac.exe" --release 8 -encoding UTF-8 -nowarn -cp $cpj -d "$out\classes" "@$argfile"
 if ($LASTEXITCODE -ne 0) { throw "javac failed" }
 
 Write-Host "[4/7] d8 (dex) ..."
@@ -101,7 +111,9 @@ $jar = "$out\classes.jar"
 if (Test-Path $jar) { Remove-Item $jar -Force }
 [System.IO.Compression.ZipFile]::CreateFromDirectory("$out\classes", $jar)
 if (-not (Test-Path $jar)) { throw "classes.jar not produced" }
-& "$BT\d8.bat" --lib $AJAR --min-api 21 --output "$out\dex" $jar
+$d8in = @($jar)
+if (Test-Path $proto) { $d8in += $proto }
+& "$BT\d8.bat" --lib $AJAR --min-api 21 --output "$out\dex" @d8in
 if ($LASTEXITCODE -ne 0) { throw "d8 failed" }
 
 Write-Host "[5/7] add classes.dex into apk ..."
@@ -111,6 +123,22 @@ $zip = [System.IO.Compression.ZipFile]::Open("$out\unsigned.apk", 'Update')
 $dex = "$out\dex\classes.dex"
 if (-not (Test-Path $dex)) { $zip.Dispose(); throw "classes.dex not produced" }
 [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $dex, "classes.dex") | Out-Null
+
+# Built-in Anki engine native library (librsdroid.so), placed under lib\<abi>\.
+# With manifest extractNativeLibs="true" the system unpacks it at install time,
+# so System.loadLibrary("rsdroid") finds it.
+$soDefs = @(
+    @{ abi = "x86_64";    path = "$here\tools\lib\jni\x86_64\librsdroid.so" },
+    @{ abi = "arm64-v8a"; path = "$here\tools\lib\jni\arm64-v8a\librsdroid.so" }
+)
+foreach ($so in $soDefs) {
+    if (Test-Path $so.path) {
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $so.path, "lib/$($so.abi)/librsdroid.so") | Out-Null
+        Write-Host ("native: lib/{0}/librsdroid.so ({1:N1} MB)" -f $so.abi, ((Get-Item $so.path).Length / 1MB))
+    } else {
+        Write-Host ("native: missing {0} (engine disabled on that ABI)" -f $so.path) -ForegroundColor Yellow
+    }
+}
 $zip.Dispose()
 
 Write-Host "[6/7] zipalign ..."

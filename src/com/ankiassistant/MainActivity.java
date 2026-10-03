@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (getIntent() != null && getIntent().getBooleanExtra("engineTest", false)) runEngineSelfTest();
         CrashHandler.install(this);
         store = new Store(this);
         // WebView 读不了 assets 里 1MB 以上的文件（MathJax 就超了），所以起个本机小服务器
@@ -61,6 +62,39 @@ public class MainActivity extends Activity {
         maybeIntro();
         // 启动就测一次 Anki 连接，侧栏底部那盏灯直接反映真实状态
         if (rail != null) checkAnkiLamp();
+    }
+
+    /**
+     * 调试用：`adb shell am start -n com.ankiassistant/.MainActivity --ez engineTest true`
+     * 会在后台跑一遍内置引擎自检，结果写进 logcat（tag=AnkiAssistant），方便在真机上确认引擎可用。
+     */
+    private void runEngineSelfTest() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                AnkiEngine e = null;
+                try {
+                    e = new AnkiEngine();
+                    android.util.Log.i("AnkiAssistant", "ENGINE native library loaded, backend started");
+                    e.openCollection(MainActivity.this);
+                    android.util.Log.i("AnkiAssistant", "ENGINE collection at " + e.collectionPath());
+                    java.util.Map<String, Long> decks = e.deckNames();
+                    android.util.Log.i("AnkiAssistant", "ENGINE decks=" + decks.size() + " " + decks.keySet());
+                    long did = e.ensureDeck(store.defaultDeck());
+                    android.util.Log.i("AnkiAssistant", "ENGINE ensureDeck(" + store.defaultDeck() + ")=" + did);
+                    long mid = e.ensureCardNotetype();
+                    android.util.Log.i("AnkiAssistant", "ENGINE ensureCardNotetype=" + mid);
+                    String[] flds = new String[CardFormat.FIELDS.length];
+                    for (int i = 0; i < flds.length; i++) flds[i] = i == 0 ? "engine-selftest" : "v" + i;
+                    long nid = e.addNote(did, mid, flds, new String[]{"ALevel::Maths"});
+                    android.util.Log.i("AnkiAssistant", "ENGINE addNote ok noteId=" + nid);
+                    android.util.Log.i("AnkiAssistant", "ENGINE SELFTEST PASS");
+                } catch (Throwable t) {
+                    android.util.Log.e("AnkiAssistant", "ENGINE SELFTEST FAIL: " + t, t);
+                } finally {
+                    if (e != null) e.close();
+                }
+            }
+        }).start();
     }
 
     @Override
