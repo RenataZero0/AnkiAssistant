@@ -7,7 +7,7 @@ package com.ankiassistant;
  * 每次迭代：先在 CHANGELOG.md 顶部加一节，再把这里加一档。
  */
 public class Version {
-    public static final String VERSION_TAG = "v1.14.9";
+    public static final String VERSION_TAG = "v1.15.0";
     /** 纯数字版本（Changelog 里比对用） */
-    public static final String VERSION_NUMBER = "1.14.9";
+    public static final String VERSION_NUMBER = "1.15.0";
 }

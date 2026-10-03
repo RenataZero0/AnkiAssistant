@@ -452,6 +452,7 @@ public class BrowseView extends LinearLayout {
         detailWeb.setWebViewClient(new WebViewClient() {
             @Override public void onPageFinished(WebView view, String url) {
                 detailWebReady = true;
+                pushThemeToWeb();          // 先套用当前皮肤，否则深色下这块是浅色的
                 if (pendingNoteJson != null) pushNoteToWeb();
             }
         });
@@ -476,6 +477,7 @@ public class BrowseView extends LinearLayout {
     /** 页面就绪后把内容推进去（没就绪就等 onPageFinished 回调） */
     private void pushNoteToWeb() {
         if (detailWeb == null || pendingNoteJson == null || !detailWebReady) return;
+        pushThemeToWeb();
         detailWeb.evaluateJavascript("showNoteFields(" + pendingNoteJson + ")", null);
     }
 
