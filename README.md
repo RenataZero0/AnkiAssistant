@@ -192,7 +192,7 @@ AnkiAssistant\
 │   ├─ CreateView.java        制卡页：单词 → AI 填充 → 富文本编辑 → 存 Anki / 存草稿
 │   ├─ BrowseView.java        浏览页：牌组/搜索/笔记列表/卡片详情/删除/同步/本地草稿
 │   ├─ SettingsView.java      设置：Anki 连接、AI、默认值、更新内容
-│   ├─ Changelog.java         读打包进 APK 的 CHANGELOG.md（不联网）+ 版本号比对
+│   ├─ Changelog.java         更新日志：GitHub 缓存优先 → assets 内置副本兜底 + 版本号比对
 │   ├─ ChangelogView.java     更新日志阅读器（自绘 Markdown + 版本快捷跳转）
 │   ├─ CardFormat.java        ★格式的唯一事实来源：提示词、AI 回复解析、字段组装、模板与 CSS
 │   ├─ AnkiClient.java        AnkiConnect 客户端（纯 java.* + org.json，可自检）
@@ -249,8 +249,12 @@ powershell -ExecutionPolicy Bypass -File build.ps1        # 再打包
 
 1. 在 `CHANGELOG.md` **顶部**新增一节：`## vX.Y.Z · 日期 —— 一句话标题`，下面用 `### 新增 / 调整 / 修` 分类
 2. 把 `src\com\ankiassistant\Version.java` 的 `VERSION_TAG` 与 `VERSION_NUMBER` 加一档
-3. `build.ps1` 会自动把 `CHANGELOG.md` 拷进 `assets\CHANGELOG.md` 再打包 —— 所以 App 里
-   「设置 → 更新内容 → 查看更新内容」**离线**就能看（自绘 Markdown 阅读器，带版本快捷跳转）
+3. `build.ps1` 会自动把 `CHANGELOG.md` 拷进 `assets\CHANGELOG.md` 再打包（内置副本，保证离线也有东西看）
+4. 打开「设置 → 更新内容 → 查看更新内容」时会**先联网拉一次最新日志**
+   （`raw.githubusercontent.com/.../main/CHANGELOG.md`，匿名可读、不需要令牌），成功就写进应用私有目录当缓存；
+   拉不到就用缓存 / 内置副本，并在标题下写明来源：
+   「来自 GitHub 最新版（缓存于 MM-dd HH:mm）」或「来自应用内置副本（离线）· 在线更新失败：<原因>」
+   —— 与 StudyCompanion 的更新日志读取方式**完全一致**（缓存优先 → 内置副本兜底）
 4. 版本号只有一处：`Version.java`。`build.ps1` 从它推导 manifest 的 `versionName/versionCode`，
    不会出现"APK 显示 1.0、代码里是别的版本"这种漂移
 5. 如果打包的日志里最新版本和运行的版本不一致，设置页会主动黄字提醒（构建时忘了改版本号）
