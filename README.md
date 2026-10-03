@@ -226,6 +226,34 @@ powershell -ExecutionPolicy Bypass -File build.ps1        # 再打包
 
 依赖的绝对路径写在 `build.ps1` 开头（`D:\android-sdk`、`D:\Program Files\Java\jdk-21`），换机器改那两行。
 
+### 内置 Key 与"新设备零输入"
+
+新设备装完**什么都不用填**就能用，靠的是这几处内置默认值（都在代码里，不在本机上）：
+
+| 项目 | 值 / 位置 |
+|---|---|
+| 电脑 IP | `Store.DEFAULT_ANKI_HOST` = `192.168.71.112`（换网络时在设置里改一次） |
+| 端口 / AnkiConnect Key | `8765` / 留空 |
+| AI 服务商 / 模型 / 接口地址 | 智谱 GLM-4.5-Flash（免费）/ `glm-4.5-flash` / `open.bigmodel.cn/api/paas/v4/chat/completions` |
+| AI Key | `Secret.java` 里的 **AES-GCM 密文**（见下） |
+| 默认牌组 / 标签 / 学科背景 | `A Level Pure Mathematics` / `ALevel::Maths` / `CIE A-Level / NCUK IFY 数学、物理术语` |
+| 自动同步 / 思考模式 | 开启 / 关闭 |
+
+**内置 Key 怎么做的**：APK 里只有密文（`Secret.CT_B64`）；密钥由「口令 + 随机 salt」经 PBKDF2-HMAC-SHA256(12000)
+派生，口令拆成 4 段分散在不同方法里、其中一段反序存放，直接 `strings` 抓不到。
+设置里**手填的 Key 优先于内置 Key**（`Store.aiApiKeyFor`），发现异常随时换一把，不用发版。
+
+**换 Key（三步）**：
+
+```powershell
+java tools\MakeSecret.java "<新的Key>" "<新的40位口令>"
+# 把输出的 SALT_B64 / IV_B64 / CT_B64 三行粘进 src\com\ankiassistant\Secret.java
+# 同时按注释里的分段方式改 assemblePass()，然后 selftest + build + 发版
+```
+
+**必须知道的风险**：只要密钥随 APK 分发，就一定能被逆向出来，加密只是把「随手提取」提高到「需要真正逆向」。
+所以本项目**只内置智谱这把免费档 Key**；付费余额的 Key（如 DeepSeek）不打包，要加就用上面那条命令单独生成。
+真要完全不可提取，只能把 Key 放到自己的服务端做代理转发。
 ### 仓库与自动更新
 
 - 本工程是**独立仓库**：<https://github.com/RenataZero0/AnkiAssistant>
