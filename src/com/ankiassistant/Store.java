@@ -42,6 +42,10 @@ public class Store {
 
     // ------------------------------------------------------------ 头像
 
+    /** 头像改成圆形的一次性迁移标记 */
+    public boolean avatarRoundMigrated() { return sp.getBoolean("avatarRoundV2", false); }
+    public void setAvatarRoundMigrated(boolean v) { sp.edit().putBoolean("avatarRoundV2", v).apply(); }
+
     /** 某个邮箱用的头像风格（见 Avatar.STYLES） */
     public String avatarStyle(String email) {
         return sp.getString("avatarStyle:" + (email == null ? "" : email.trim().toLowerCase()), "auto");

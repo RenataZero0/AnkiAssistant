@@ -77,24 +77,44 @@ public class Avatar {
             return b;
         }
         if (email == null || email.trim().length() == 0) {
-            b = letterBitmap(email, 0);
-            save(c, email, style, b);
-            return b;
+            return save(c, email, style, letterBitmap(email, 0));
         }
         b = fetch(email, style);
         if (b == null) b = letterBitmap(email, 0);
-        save(c, email, style, b);
-        return b;
+        return save(c, email, style, b);
     }
 
-    private static void save(Context c, String email, String style, Bitmap b) {
-        if (b == null) return;
+    /** 写入缓存；统一在这里做圆形遮罩，返回"圆的那张"给界面直接使用 */
+    private static Bitmap save(Context c, String email, String style, Bitmap b) {
+        if (b == null) return null;
+        Bitmap round = circular(b);
         try {
             File f = cacheFile(c, email, style);
             FileOutputStream out = new FileOutputStream(f);
-            b.compress(Bitmap.CompressFormat.PNG, 100, out);
+            round.compress(Bitmap.CompressFormat.PNG, 100, out);
             out.close();
         } catch (Exception ignored) { }
+        return round;
+    }
+
+    /** 把方形头像裁成圆形（透明背景的四角） */
+    public static Bitmap circular(Bitmap src) {
+        if (src == null) return null;
+        int size = Math.min(src.getWidth(), src.getHeight());
+        Bitmap out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas cv = new Canvas(out);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        // 用着色器把原图画进圆里，边缘自带抗锯齿
+        android.graphics.BitmapShader shader = new android.graphics.BitmapShader(
+                src, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP);
+        android.graphics.Matrix m = new android.graphics.Matrix();
+        float k = (float) size / Math.min(src.getWidth(), src.getHeight());
+        m.postScale(k, k);
+        shader.setLocalMatrix(m);
+        p.setShader(shader);
+        cv.drawCircle(size / 2f, size / 2f, size / 2f, p);
+        if (src != out) src.recycle();
+        return out;
     }
 
     /** 清掉某个邮箱所有风格缓存（换头像时用） */
@@ -210,8 +230,7 @@ public class Avatar {
             if (!f.exists()) return null;              // 媒体还没同步下来
             Bitmap b = android.graphics.BitmapFactory.decodeFile(f.getAbsolutePath());
             if (b == null) return null;
-            save(c, email, style, square(b, 256));
-            return cached(c, email, style);
+            return save(c, email, style, square(b, 256));
         } catch (Throwable t) {
             return null;
         }
@@ -222,17 +241,13 @@ public class Avatar {
         if (url == null || url.trim().length() == 0) return null;
         Bitmap b = http(url.trim());
         if (b == null) return null;
-        b = square(b, 256);
-        save(c, email, style, b);
-        return b;
+        return save(c, email, style, square(b, 256));
     }
 
     /** 直接保存一张用户选的图片（会先裁成正方形并缩到 256） */
     public static Bitmap saveCustom(Context c, String email, Bitmap src) {
         if (src == null) return null;
-        Bitmap b = square(src, 256);
-        save(c, email, "custom", b);
-        return b;
+        return save(c, email, "custom", square(src, 256));
     }
 
     /** 居中裁成正方形并缩放到指定边长 */

@@ -82,6 +82,15 @@ public class MainActivity extends Activity {
         maybeIntro();
         // 启动就测一次 Anki 连接，侧栏底部那盏灯直接反映真实状态
         if (rail != null) updateSyncLamp();
+        // 一次性清掉旧头像缓存：以前存的是方形，改成圆形后要重新生成
+        if (!store.avatarRoundMigrated()) {
+            store.setAvatarRoundMigrated(true);
+            try {
+                java.io.File dir = new java.io.File(getFilesDir(), "avatars");
+                java.io.File[] fs = dir.listFiles();
+                if (fs != null) for (java.io.File file : fs) file.delete();
+            } catch (Exception ignored) { }
+        }
         loadAvatarAsync();   // 布局建好后统一加载一次（手机没有侧栏，必须放在这里）
     }
 
@@ -434,6 +443,15 @@ public class MainActivity extends Activity {
         if (requestCode == AnkiDroidClient.PERM_REQUEST) {
 
             if (rail != null) updateSyncLamp();
+        // 一次性清掉旧头像缓存：以前存的是方形，改成圆形后要重新生成
+        if (!store.avatarRoundMigrated()) {
+            store.setAvatarRoundMigrated(true);
+            try {
+                java.io.File dir = new java.io.File(getFilesDir(), "avatars");
+                java.io.File[] fs = dir.listFiles();
+                if (fs != null) for (java.io.File file : fs) file.delete();
+            } catch (Exception ignored) { }
+        }
         loadAvatarAsync();   // 布局建好后统一加载一次（手机没有侧栏，必须放在这里）
             if (grantResults != null && grantResults.length > 0
                     && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -558,7 +576,7 @@ public class MainActivity extends Activity {
             // 顶栏也用真实头像（和侧栏、账号弹窗一致），没有头像时才显示字母底
             topAvatar = new android.widget.ImageView(this);
             topAvatar.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-            topAvatar.setBackground(Ui.round(Ui.ACCENT, 9));
+            topAvatar.setBackground(Ui.round(Ui.ACCENT, 13));
             topAvatar.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) { showAccountDialog(); }
             });
@@ -644,7 +662,7 @@ public class MainActivity extends Activity {
         });
         accountAvatar = new android.widget.ImageView(this);
         accountAvatar.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-        accountAvatar.setBackground(Ui.round(Ui.ACCENT, 11));
+        accountAvatar.setBackground(Ui.round(Ui.ACCENT, 18));
         accountAvatar.setClipToOutline(true);
         android.graphics.drawable.GradientDrawable clip = Ui.round(Ui.ACCENT, 11);
         accountAvatar.setBackground(clip);
@@ -738,7 +756,7 @@ public class MainActivity extends Activity {
             final String mail = store.ankiWebUser();
             final android.widget.ImageView avatar = new android.widget.ImageView(this);
             avatar.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-            avatar.setBackground(Ui.round(Ui.ACCENT, 12));
+            avatar.setBackground(Ui.round(Ui.ACCENT, 23));
             avatar.setClipToOutline(true);
             android.graphics.Bitmap av = Avatar.cached(this, mail, store.avatarStyle(mail));
             if (av != null) avatar.setImageBitmap(av);
