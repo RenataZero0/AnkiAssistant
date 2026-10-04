@@ -2,6 +2,7 @@
 """更严谨的"开/关思考"对比：用 raw_decode 解析（和应用 parseAi 一样容忍代码围栏），
 并显式检测"输出被截断"。结果全量落盘到 tools/_thinking_eval.json 供人工复核。"""
 import json
+import os
 import re
 import sys
 import time
@@ -126,7 +127,7 @@ for thinking in (False, True):
              R["totals"]["fact"], n))
     print("  平均 %.1fs / %d tokens / 思考 %d 字" % (R["t"] / n, R["tok"] / n, R["reason_chars"] / n))
 
-with open(r"D:\UsrFiles\Documents\NCUK IFY Self Study\AnkiAssistantAndroid\tools\_thinking_eval.json",
-          "w", encoding="utf-8") as fh:
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_thinking_eval.json")
+with open(OUT, "w", encoding="utf-8") as fh:
     json.dump(results, fh, ensure_ascii=False, indent=1)
 print("\n明细已写入 tools/_thinking_eval.json")
