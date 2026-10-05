@@ -62,26 +62,37 @@ namespace AnkiAssistant
             BuildBody();
             BuildButtons();
 
-            FitBody(388);
+            FitBody(BodyDp);
             Reload();
             Shown += delegate { Recheck(); };
         }
 
         // ===== 正文 =====
+        /// <summary>正文高度（dp）—— 构造里 FitBody 与这里共用同一个值。</summary>
+        const int BodyDp = 424;
+
         void BuildBody()
         {
-            int yDp = 6;
+            // 布局分三段：状态区固定在顶部，地址那一行固定在底部，
+            // 中间的说明吃掉剩下的高度（这样说明被拉长/换行时不会钻到底下的输入框上）。
+            int bodyH = Ui.Px(BodyDp);
+            int yStatus = Ui.Px(6);
+
+            int yHint = bodyH - Ui.Px(20);
+            int yBox = yHint - Ui.Px(32 + 8);
+            int yLab = yBox - Ui.Px(22);
+            int yMd = yStatus + Ui.Px(48 + 8);
+            int mdH = yLab - yMd - Ui.Px(10);
 
             // ---- 状态区 ----
             _status = new Panel
             {
-                Location = new Point(Ui.Px(Pad), Ui.Px(yDp)),
+                Location = new Point(Ui.Px(Pad), yStatus),
                 Size = new Size(BodyWidth, Ui.Px(48)),
                 BackColor = Ui.CARD
             };
             _status.Paint += delegate(object s, PaintEventArgs e) { PaintStatus(e.Graphics); };
             Body.Controls.Add(_status);
-            yDp += 48 + 8;
 
             // ---- 安装说明 ----
             // MarkdownView 自己留了 18 的内边距，往左挪回去让文字跟别处对齐。
@@ -91,17 +102,17 @@ namespace AnkiAssistant
                 "再交给 Anki 自己同步到 AnkiWeb，不需要登录也不需要密码。\n\n" +
                 "### 没连上？按这三步来\n" +
                 "1. 打开 Anki 桌面端\n" +
-                "2. `工具 → 插件 → 获取插件`，输入编号 **" + AnkiConn.AddonCode + "**，装完重启 Anki\n" +
-                "3. 确认端口是 **8765**（插件默认值；改过就在这里填一样的）\n";
+                "2. `工具 → 插件 → 获取插件`，填编号 **" + AnkiConn.AddonCode + "**，装完重启\n" +
+                "3. 端口 **8765**（插件默认；改过就填一样的）\n";
 
             var view = new MarkdownView
             {
-                Location = new Point(Ui.Px(Pad - 18), Ui.Px(yDp)),
-                Size = new Size(BodyWidth + Ui.Px(36), Ui.Px(240)),
+                Location = new Point(Ui.Px(Pad - 18), yMd),
+                // 宽度必须收在正文右边界内，否则 Body.AutoScroll 会多出一条横向滚动条
+                Size = new Size(BodyWidth, mdH < Ui.Px(80) ? Ui.Px(80) : mdH),
                 Markdown = md
             };
             Body.Controls.Add(view);
-            yDp += 240 + 8;
 
             // ---- 地址 ----
             var lab = new Label
@@ -111,15 +122,14 @@ namespace AnkiAssistant
                 ForeColor = Ui.SUB,
                 AutoSize = true,
                 BackColor = Color.Transparent,
-                Location = new Point(Ui.Px(Pad), Ui.Px(yDp))
+                Location = new Point(Ui.Px(Pad), yLab)
             };
             Body.Controls.Add(lab);
-            yDp += 22;
 
             _box = new Input();
             _box.Text = ToUi(Store.Get("anki.endpoint", DefEndpoint));
             _box.Font = Ui.F(10f);
-            _box.Location = new Point(Ui.Px(Pad), Ui.Px(yDp));
+            _box.Location = new Point(Ui.Px(Pad), yBox);
             _box.Size = new Size(BodyWidth, Ui.Px(32));
             _box.TextChanged += delegate
             {
@@ -140,7 +150,6 @@ namespace AnkiAssistant
                     Store.Set("anki.endpoint", ToStore(DefEndpoint));
                 }
             };
-            yDp += 32 + 8;
 
             var hint = new Label
             {
@@ -149,7 +158,7 @@ namespace AnkiAssistant
                 ForeColor = Ui.SUB,
                 AutoSize = true,
                 BackColor = Color.Transparent,
-                Location = new Point(Ui.Px(Pad), Ui.Px(yDp))
+                Location = new Point(Ui.Px(Pad), yHint)
             };
             Body.Controls.Add(hint);
         }
@@ -203,18 +212,17 @@ namespace AnkiAssistant
                 dot = Ui.TEXT_DIM;
             }
 
-            using (var f = Ui.F(11f, true))
-            {
-                Ui.Text(g, big, f, Ui.INK, 0, Ui.Px(2));
-                // 圆点跟在字后面，得自己量一下字宽
-                SizeF sz = g.MeasureString(big, f);
-                int d = Ui.Px(9);
-                using (var b = new SolidBrush(dot))
-                    g.FillEllipse(b, (int)Math.Round(sz.Width) + Ui.Px(4),
-                        Ui.Px(2) + (Ui.Px(17) - d) / 2, d, d);
-            }
-            using (var f = Ui.F(8.5f))
-                Ui.Text(g, SyncState.StatusText(), f, Ui.SUB, 0, Ui.Px(29));
+            // 注意：Ui.F 返回的是全局缓存的字体，别 Dispose（释放掉之后再画就是「参数无效」）
+            Font fBig = Ui.F(11f, true);
+            Ui.Text(g, big, fBig, Ui.INK, 0, Ui.Px(2));
+            // 圆点跟在字后面，得自己量一下字宽
+            SizeF sz = g.MeasureString(big, fBig);
+            int d = Ui.Px(9);
+            using (var b = new SolidBrush(dot))
+                g.FillEllipse(b, (int)Math.Round(sz.Width) + Ui.Px(4),
+                    Ui.Px(2) + (Ui.Px(17) - d) / 2, d, d);
+
+            Ui.Text(g, SyncState.StatusText(), Ui.F(8.5f), Ui.SUB, 0, Ui.Px(29));
 
             // 一条细线，把状态区和下面的说明隔开
             using (var p = new Pen(Ui.LINE))

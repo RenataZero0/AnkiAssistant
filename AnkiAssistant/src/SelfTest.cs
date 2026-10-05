@@ -350,8 +350,9 @@ namespace AnkiAssistant
             {
                 using (var bmp = new Bitmap(200, 100))
                 using (Graphics g = Graphics.FromImage(bmp))
-                using (Font f = Ui.F(9f))
                 {
+                    // Ui.F 是全局缓存字体，不能放进 using（Dispose 掉会毒到别处）
+                    Font f = Ui.F(9f);
                     string longCn = new string('中', 400);
                     string[] ls = Ui.Wrap(g, longCn, f, 180);
                     wrapOk = ls != null && ls.Length > 1;

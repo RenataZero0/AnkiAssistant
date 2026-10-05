@@ -57,12 +57,17 @@ namespace AnkiAssistant
         {
             string key = FontName + "|" + (int)Math.Round(pt * 1000) + "|" + (bold ? 1 : 0) + "|" +
                          (int)Math.Round(FontBoost * 1000);
-            Font hit;
-            if (Fonts.TryGetValue(key, out hit)) return hit;
-            Font made = new Font(FontName, pt * FontBoost, bold ? FontStyle.Bold : FontStyle.Regular,
-                                 GraphicsUnit.Point);
-            Fonts[key] = made;
-            return made;
+            // 后台线程也会进来（例如后台预渲染），字典得加锁；
+            // 返回的是共享对象，调用方**不要 Dispose**（释放掉之后再用就是「参数无效」）。
+            lock (Fonts)
+            {
+                Font hit;
+                if (Fonts.TryGetValue(key, out hit)) return hit;
+                Font made = new Font(FontName, pt * FontBoost, bold ? FontStyle.Bold : FontStyle.Regular,
+                                     GraphicsUnit.Point);
+                Fonts[key] = made;
+                return made;
+            }
         }
 
         // ===== 绘制工具 =====

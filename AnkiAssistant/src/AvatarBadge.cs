@@ -87,9 +87,9 @@ namespace AnkiAssistant
                     using (var br = new SolidBrush(Ui.ACCENT)) g.FillRectangle(br, box);
                     string letter = Store.Get("anki.profile", "A");
                     if (letter.Length == 0) letter = "A";
-                    using (var f = Ui.F(Width * 0.30f, true))
-                        Ui.TextC(g, letter.Substring(0, 1).ToUpperInvariant(), f, Ui.WHITE,
-                            Width / 2, Height / 2);
+                    // Ui.F 是全局缓存字体，不能 Dispose
+                    Ui.TextC(g, letter.Substring(0, 1).ToUpperInvariant(), Ui.F(Width * 0.30f, true), Ui.WHITE,
+                        Width / 2, Height / 2);
                 }
                 g.Restore(st);
             }
