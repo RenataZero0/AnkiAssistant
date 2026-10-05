@@ -17,6 +17,12 @@ _selftest/
 # ---- Windows artifacts ----
 # the loose exe is only the installer's input, not a release asset
 AnkiAssistant/AnkiAssistant.exe
+# the built-in Anki engine dll (~32 MB) sits next to the exe at runtime and is
+# also kept in tools/lib for local builds; build it with the recipe in
+# AnkiAssistant/tools/BUILD_ENGINE_WINDOWS.md
+AnkiAssistant/AnkiAssistant/rslib_aa.dll
+rslib_aa.dll
+aa_ffi.dll
 AnkiAssistantSetup/AnkiAssistant-Setup.exe
 AnkiAssistantSetup/build/
 *.pdb
@@ -44,3 +50,9 @@ tools/lib/
 # built-in Anki engine native libs (37 MB x2), build them yourself
 # with the recipe in tools\BUILD_ENGINE.md
 tools/lib/jni/
+
+# scratch screenshots taken while iterating on the modernized UI
+AnkiAssistant/preview/probe-*.png
+AnkiAssistant/preview/v2-*.png
+AnkiAssistant/preview/v3-*.png
+AnkiAssistant/preview/conn-dialog-v1163.png

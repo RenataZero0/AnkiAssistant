@@ -68,11 +68,23 @@ $srcs += (Join-Path $out "SetupInfo.cs")
 $target = Join-Path $here "AnkiAssistant-Setup.exe"
 if (Test-Path $target) { Remove-Item $target -Force }
 
+# ---- embedded engine dll (optional until the native backend is built)
+$engine = Join-Path $appDir "rslib_aa.dll"
+$engineArgs = @()
+if (Test-Path $engine) {
+    $mb = [math]::Round((Get-Item $engine).Length / 1MB, 1)
+    Write-Host "engine: $engine ($mb MB)"
+    $engineArgs = @("/resource:$engine,App.rslib_aa.dll")
+} else {
+    Write-Warning "engine dll not found - the installer will NOT contain the built-in Anki engine: $engine"
+}
+
 & $csc /nologo /codepage:65001 /target:winexe /optimize+ /out:$target `
     /win32icon:$ico `
     "/resource:$exe,App.AnkiAssistant.exe" `
     "/resource:$ico,App.app.ico" `
     "/resource:$chg,App.CHANGELOG.md" `
+    $engineArgs `
     /r:System.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Core.dll `
     $srcs
 

@@ -24,8 +24,23 @@ namespace AnkiAssistant
             else path = Path.GetFullPath(path);
             if (string.IsNullOrEmpty(page)) page = "create";
 
+            // ==== 临时（验证自绘弹窗用，验完删） ====
+            if (page.StartsWith("dlg:", StringComparison.OrdinalIgnoreCase))
+            {
+                ShotDialog(path, page.Substring(4).ToLowerInvariant());
+                return;
+            }
+
+            // ==== 临时：dark: 前缀用来出一张深色皮肤的图（验完删） ====
+            bool darkSkin = false;
+            if (page.StartsWith("dark:", StringComparison.OrdinalIgnoreCase))
+            {
+                darkSkin = true;
+                page = page.Substring(5);
+            }
+
             // 先建窗再套皮肤，理由和 MainForm 里一致：控件用构造时的 Ui.XXX 取色
-            Theme.Apply(Theme.Get(Store.ThemeId));
+            Theme.Apply(darkSkin ? Theme.Get("dark") : Theme.Get(Store.ThemeId));
 
             MainForm f = null;
             try
@@ -76,6 +91,82 @@ namespace AnkiAssistant
                 Application.DoEvents();
                 Thread.Sleep(ms);
             }
+        }
+
+        // ==== 临时：抓自绘弹窗（验完删） ====
+        static void ShotDialog(string path, string which)
+        {
+            Theme.Apply(Theme.Get(Store.ThemeId));
+            var t = new System.Windows.Forms.Timer();
+            t.Interval = 1200;
+            t.Tick += delegate(object s, EventArgs e)
+            {
+                t.Stop();
+                Form act = null;
+                foreach (Form f in Application.OpenForms)
+                {
+                    if (f != null && f.Visible) act = f;
+                }
+                if (act == null)
+                {
+                    Console.WriteLine("SHOT FAILED: no active form");
+                    Environment.Exit(1);
+                }
+                using (var bmp = new Bitmap(act.Width, act.Height))
+                {
+                    act.DrawToBitmap(bmp, new Rectangle(0, 0, act.Width, act.Height));
+                    bmp.Save(path, ImageFormat.Png);
+                }
+                Console.WriteLine("SHOT -> " + path + " (" + act.Width + "x" + act.Height + ")");
+                act.Close();
+            };
+            t.Start();
+
+            if (which == "choose")
+            {
+                string[] items = new string[14];
+                for (int i = 0; i < items.Length; i++) items[i] = "NCUK::Maths::Deck::" + (i + 1);
+                Dlg.Choose(null, "选择牌组", "卡片会放进选中的牌组下面。", items, null, 3, null);
+            }
+            else if (which == "confirm")
+            {
+                Dlg.Confirm(null, "删除卡片", "删掉之后就找不回来了。",
+                    "真的要把这张卡片从 Anki 里删掉吗？本机卡片和 AnkiWeb 都会少一张。",
+                    "删除", "取消", true);
+            }
+            else if (which == "avatar")
+            {
+                AvatarDialog.Show(null);
+            }
+            else if (which == "web")
+            {
+                WebDialog.Show(null);
+            }
+            else if (which == "form")
+            {
+                Dlg.Form(null, "新建输出格式", "照着你的学科改就行。",
+                    new string[] { "名称", "笔记类型", "默认牌组" },
+                    new string[] { "英语词汇", "AnkiAssistant", "英语::词汇" });
+            }
+            else if (which == "config")
+            {
+                var d = new ConfigEditor(null, CardConfig.VocabConfig());
+                d.ShowDialog(null);
+            }
+            else if (which == "configdark")
+            {
+                Theme.Apply(Theme.Get("dark"));
+                var d2 = new ConfigEditor(null, CardConfig.VocabConfig());
+                d2.ShowDialog(null);
+            }
+            else if (which == "choosedark")
+            {
+                Theme.Apply(Theme.Get("dark"));
+                string[] its = new string[14];
+                for (int i = 0; i < its.Length; i++) its[i] = "NCUK::Maths::Deck::" + (i + 1);
+                Dlg.Choose(null, "选择牌组", "卡片会放进选中的牌组下面。", its, null, 3, null);
+            }
+            Environment.Exit(0);
         }
     }
 }

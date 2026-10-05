@@ -35,28 +35,24 @@ namespace AnkiAssistant
         Pill _providerBtn;
         Input _keyBox, _modelBox, _urlBox;
         Label _keyHint;
-        CheckBox _thinking;
+        Check _thinking;
 
         // 输出格式卡片
         Label _cfgLabel;
         Pill _cfgDelete, _cfgReset;
 
         // 同步卡片
-        Input _endpointBox;
         AnkiLamp _lamp;
-        CheckBox _autoSync, _autoCheck;
+        Check _autoSync, _autoCheck;
 
         // 制卡习惯
-        CheckBox _clear, _autoPreview;
+        Check _clear, _autoPreview;
 
         // 皮肤
         SkinDot _skinDot;
         Label _skinName;
 
-        // 头像
-        Input _mailBox;
-        Label _avatarMsg;
-        Timer _mailWait;
+        // 头像那张卡只是入口，内容全在 AvatarDialog 里
 
         // 关于 / 更新
         Label _aboutVer, _updateVer, _updateMsg;
@@ -483,30 +479,28 @@ namespace AnkiAssistant
         void BuildSync()
         {
             var c = new CardBuilder(_host, Sections[2]);
-            c.Tip("卡片写进本机 Anki 桌面端，再由 Anki 自己同步到 AnkiWeb。" +
-                  "这里设置用哪个 AnkiConnect 端口，以及要不要顺手帮 Anki 同步一次。");
+            c.Tip("卡片写进本程序自己的收藏库（内置引擎 rslib，不需要装任何插件），" +
+                  "再由 AnkiWeb 同步到手机和别的电脑。这里只管 AnkiWeb 账号与同步方向。");
 
-            c.Label("AnkiConnect 地址");
-            _endpointBox = c.Input(false);
-            _endpointBox.TextChanged += delegate
+            c.Label("AnkiWeb 账号");
+            c.Button("登录 / 同步…", true, delegate
             {
-                if (_loading) return;
-                string t = _endpointBox.Text.Trim();
-                if (t.Length > 0) AnkiConn.Endpoint = t;   // 空值不写：逐字删除时别把地址清成空
-            };
-            c.Hint("必须先在 Anki 里装 AnkiConnect 插件（编号 " + AnkiConn.AddonCode +
-                   "），装完重启 Anki。");
+                WebDialog.Show(FindForm());
+                RefreshSyncCard();
+            });
+            c.Hint("没登录过就点上面：登录后可以把这份收藏库上传到 AnkiWeb，" +
+                   "或者把 AnkiWeb 上的下载下来。");
 
             c.Gap(10);
-            c.Button("立即连接检查", false, delegate { CheckNow(); });
+            c.Button("重新检查引擎", false, delegate { CheckNow(); });
 
             c.Gap(10);
             _lamp = c.Lamp();
 
             c.Gap(6);
-            _autoSync = c.Check("保存卡片后自动让 Anki 同步一次", false);
+            _autoSync = c.Check("保存卡片后自动同步到 AnkiWeb", false);
             _autoSync.CheckedChanged += delegate { Store.SetBool("anki.autosync", _autoSync.Checked); };
-            _autoCheck = c.Check("启动时自动检查连接", true);
+            _autoCheck = c.Check("启动时自动检查引擎", true);
             _autoCheck.CheckedChanged += delegate { Store.SetBool("anki.autocheck", _autoCheck.Checked); };
 
             c.Done();
@@ -592,17 +586,6 @@ namespace AnkiAssistant
             _skinName.Invalidate();
         }
 
-        /// <summary>进头像卡片时先说清楚现在这张是哪来的。</summary>
-        void RefreshAvatarMsg()
-        {
-            if (_avatarMsg == null) return;
-            string src = Store.Get("avatar.source", "");
-            if (src == "custom") AvatarMsg("现在用的是自己选的那张（在 Anki 媒体库里，会跟着同步）。", Ui.SUB);
-            else if (src == "gravatar") AvatarMsg("现在用的是 Gravatar 上那张。", Ui.SUB);
-            else if (AvatarStore.Email.Length == 0) AvatarMsg("还没填邮箱 —— 填了才能用 Gravatar。", Ui.AMBER);
-            else AvatarMsg("Gravatar 上没有的话，角标就显示邮箱首字母。", Ui.SUB);
-        }
-
         void PickSkin()
         {
             List<Theme> all = Theme.All();
@@ -635,126 +618,14 @@ namespace AnkiAssistant
             c.Tip("默认按邮箱从 Gravatar 取头像；也可以自己选一张，" +
                   "选完那张会写进 Anki 的媒体库，跟着 AnkiWeb 同步到手机 / 别的电脑。");
 
-            c.Label("Gravatar / AnkiWeb 邮箱");
-            _mailBox = c.Input(false);
-            _mailBox.TextChanged += delegate
-            {
-                if (_loading) return;
-                Store.Set("anki.profile", _mailBox.Text.Trim());
-                Store.Set("avatar.email", "");   // 邮箱换了，旧缓存（Gravatar 那张）作废
-                WaitMail();
-            };
-            c.Hint("只用来算头像（Gravatar 的公开算法），本程序不会把邮箱发到别处，" +
-                   "也不需要 AnkiWeb 密码。");
+            c.Gap(4);
+            c.Button("打开头像设置", true, delegate { AvatarDialog.Show(FindForm()); });
 
-            c.Gap(12);
-            c.Row(32, 2);
-            c.InRow(c.MakeButton("选择图片…", true, delegate { PickAvatarImage(); }), 8);
-            c.InRow(c.MakeButton("换回 Gravatar", false, delegate { UseGravatar(); }), 0);
-
-            c.Gap(6);
-            _avatarMsg = c.Tip("");
+            c.Gap(8);
+            c.Hint("改头像：点右上角的头像，或点上面的按钮。邮箱、选图、换回 Gravatar " +
+                   "和让 Anki 同步都在那个弹窗里。");
 
             c.Done();
-        }
-
-        /// <summary>输入邮箱时别每敲一个字就去打一次 Gravatar，停手一会儿再解析。</summary>
-        void WaitMail()
-        {
-            if (_mailWait == null)
-            {
-                _mailWait = new Timer();
-                _mailWait.Interval = 800;
-                _mailWait.Tick += delegate
-                {
-                    _mailWait.Stop();
-                    RefreshAvatar();
-                };
-            }
-            _mailWait.Stop();
-            _mailWait.Start();
-        }
-
-        /// <summary>让顶栏角标按新的邮箱 / 缓存重解析一次。</summary>
-        void RefreshAvatar()
-        {
-            if (MainForm.Instance != null) MainForm.Instance.RefreshAvatar();
-        }
-
-        /// <summary>头像卡片里那行反馈：成功绿、只存在本机琥珀、失败红。</summary>
-        void AvatarMsg(string text, Color color)
-        {
-            if (_avatarMsg == null) return;
-            _avatarMsg.Text = text;
-            _avatarMsg.ForeColor = color;
-            _avatarMsg.Invalidate();
-        }
-
-        void PickAvatarImage()
-        {
-            string path;
-            using (var d = new OpenFileDialog())
-            {
-                d.Title = "选择头像图片";
-                d.Filter = "图片 (*.png;*.jpg;*.jpeg;*.bmp;*.gif)|*.png;*.jpg;*.jpeg;*.bmp;*.gif" +
-                           "|所有文件 (*.*)|*.*";
-                if (d.ShowDialog(FindForm()) != DialogResult.OK) return;
-                path = d.FileName;
-            }
-
-            try
-            {
-                // 拷一份再存：File 系列会让文件一直被占着，用户在原程序里可能还要用它
-                using (Image raw = Image.FromFile(path))
-                using (var copy = new Bitmap(raw))
-                    AvatarBadge.SaveImage(copy);
-            }
-            catch (Exception ex)
-            {
-                AvatarMsg("这张图读不进来：" + ex.Message, Ui.RED);
-                return;
-            }
-
-            RefreshAvatar();
-            AvatarMsg("头像已换好，正在往 Anki 媒体库里写…", Ui.SUB);
-
-            // 上传放后台：Anki 没开也不能卡住设置页，失败只在那行小字里说一声
-            string why = null;
-            Dlg.LastError = null;   // 静态字段，上一次的错不能算到这一次头上
-            Dlg.Wait(FindForm(), "头像", "正在把头像写进 Anki 媒体库…", delegate
-            {
-                using (Image img = AvatarBadge.LoadImage())
-                {
-                    if (img == null) why = "本机那张读不回来了。";
-                    else AvatarStore.Push(img, out why);
-                }
-            });
-            if (why == null && Dlg.LastError != null) why = Dlg.LastError.Message;
-
-            if (why == null) AvatarMsg("已存进 Anki 媒体库，会跟着 AnkiWeb 同步。", Ui.GREEN);
-            else AvatarMsg("头像只存在本机：" + why, Ui.AMBER);
-        }
-
-        void UseGravatar()
-        {
-            bool ok = Dlg.Confirm(FindForm(), "换回默认头像",
-                "本机这张会被删掉，Anki 媒体库里那张也一起删；" +
-                "别的设备同步完也会回到 Gravatar（按上面的邮箱取）。",
-                "换回默认", "取消", false);
-            if (!ok) return;
-
-            AvatarBadge.ClearImage();
-            Store.Set("avatar.source", "");
-            Store.Set("avatar.email", "");
-
-            Dlg.Wait(FindForm(), "头像", "正在清媒体库里的旧头像…", delegate
-            {
-                AvatarStore.DeleteRemote();   // 删不掉也不影响本机换回默认
-            });
-
-            RefreshAvatar();
-            MainForm.Instance.SetStatus("已换回 Gravatar 默认头像");
-            AvatarMsg("已换回默认：有 Gravatar 就显示它，没有就显示字母。", Ui.GREEN);
         }
 
         // ---------------------------------------------------------------- 7. 关于
@@ -764,8 +635,9 @@ namespace AnkiAssistant
             var c = new CardBuilder(_host, Sections[6]);
             _aboutVer = c.Text("Anki 助手 " + GitHub.Clean(GitHub.VersionTag), 11.5f, true);
 
-            c.Tip("卡片通过 AnkiConnect 插件写进本机 Anki 桌面端；" +
-                  "本程序不联网同步卡片，也不保存你的 Anki 密码。");
+            c.Tip("卡片写进本程序自己的收藏库，用内置的官方引擎 rslib（打包在安装包里，不需要装插件），" +
+                  "再由 AnkiWeb 同步到手机和别的电脑 —— 和安卓版走的是同一条路。" +
+                  "本程序不保存你的 AnkiWeb 密码，只保存登录后拿到的 hkey。");
 
             c.Gap(10);
             c.Button("打开项目主页", false, delegate
@@ -778,8 +650,8 @@ namespace AnkiAssistant
             });
 
             c.Gap(8);
-            c.Hint("第三方组件：AnkiConnect（Anki 插件，MIT 许可，编号 " + AnkiConn.AddonCode +
-                   "）；本程序只通过它的本机 HTTP 接口读写卡片。");
+            c.Hint("第三方组件：rslib 与 rsdroid（Anki 官方 Rust 后端，AGPL-3.0）。" +
+                   "本程序不含 AnkiConnect，也不读写 Anki 桌面端的收藏库。");
 
             c.Done();
         }
@@ -959,7 +831,7 @@ namespace AnkiAssistant
         public void Activate()
         {
             // 第一次显示时右侧八张卡片一张都还没建（Rebuild 过去只在用户改格式时才被调用），
-            // 不先建出来的话 _keyBox / _thinking / _endpointBox… 全是 null，
+            // 不先建出来的话 _keyBox / _thinking … 全是 null，
             // 灌值那段会被 NullReferenceException 打断、又被 catch 吞掉，内容区就一直是空白。
             if (!_built) Rebuild();
             else LoadValues();
@@ -979,19 +851,16 @@ namespace AnkiAssistant
                 _modelBox.Text = Store.Get("ai.model", AiClient.PresetModel(preset));
                 _urlBox.Text = Store.Get("ai.url", AiClient.PresetBaseUrl(preset));
                 _thinking.Checked = Store.GetBool("ai.thinking", false);
-                _endpointBox.Text = AnkiConn.Endpoint;
                 _autoSync.Checked = Store.GetBool("anki.autosync", false);
                 _autoCheck.Checked = Store.GetBool("anki.autocheck", true);
                 _clear.Checked = Store.GetBool("create.clear", true);
                 if (_autoPreview != null) _autoPreview.Checked = Store.GetBool("create.autopreview", false);
-                if (_mailBox != null) _mailBox.Text = Store.Get("anki.profile", "");
                 _loading = false;
 
                 RefreshProviderBtn();
                 RefreshFormatCard();
                 RefreshSyncCard();
                 RefreshSkin();
-                RefreshAvatarMsg();
                 Spy();
             }
             catch { }
@@ -1025,7 +894,6 @@ namespace AnkiAssistant
             {
                 if (_spy != null) { _spy.Stop(); _spy.Dispose(); _spy = null; }
                 if (_syncPoll != null) { _syncPoll.Stop(); _syncPoll.Dispose(); _syncPoll = null; }
-                if (_mailWait != null) { _mailWait.Stop(); _mailWait.Dispose(); _mailWait = null; }
             }
             base.Dispose(disposing);
         }
@@ -1152,186 +1020,6 @@ namespace AnkiAssistant
             Ui.TextVC(g, Text, Ui.F(9f), Ui.TEXT_BODY,
                 new Rectangle(left, 0, Math.Max(1, Width - left), Height));
         }
-    }
-
-    // ==================================================================== 可滚动内容区
-
-    /// <summary>
-    /// 只竖滚的内容容器：卡片宽度跟着面板走，永远不出横向滚动条。
-    ///
-    /// 不用 Panel.AutoScroll 的原因：它按子控件的 Anchor/Dock 算总高，
-    /// 卡片一改宽就容易冒出横向条，滚动位置也不好像素级控制。
-    /// </summary>
-    public class ScrollHost : Control
-    {
-        readonly List<Control> _cards = new List<Control>();
-        readonly Panel _body;
-        int _scroll, _contentH, _thumbH, _thumbTop, _dragOffset;
-        bool _dragging, _trackHot;
-
-        public int Gap = 14;                        // 卡片间距（dp）
-        public Padding BodyPadding = new Padding(16, 14, 16, 16);
-        public int MaxContentWidth;                 // >0 时限宽 + 居中
-
-        public event EventHandler ScrollChanged;
-
-        public ScrollHost()
-        {
-            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
-                     ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-            BackColor = Ui.BG;
-            // 自己管滚动位置：不用 Control.AutoScroll（它是只读属性，也按 Anchor/Dock
-            // 算总高，卡片一改宽就容易冒出横向条）。
-
-            _body = new Panel();
-            _body.BackColor = Ui.BG;
-            Controls.Add(_body);
-
-            MouseDown += OnTrackDown;
-            MouseMove += OnTrackMove;
-            MouseUp += delegate { _dragging = false; };
-        }
-
-        public int ContentHeight { get { return _contentH; } }
-        public int ScrollY { get { return _scroll; } }
-        public int MaxScroll { get { return Math.Max(0, _contentH - ClientSize.Height); } }
-
-        public void Add(Control c)
-        {
-            if (c == null || _cards.Contains(c)) return;
-            if (c.Parent != _body) _body.Controls.Add(c);
-            _cards.Add(c);
-        }
-
-        public void ClearContent()
-        {
-            _cards.Clear();
-            _body.Controls.Clear();
-            _contentH = 0;
-            _scroll = 0;
-            _body.Top = 0;
-            _trackH = 0;
-        }
-
-        /// <summary>按当前宽度摆好所有卡片，算出内容总高和滚动条。</summary>
-        public void Recalc()
-        {
-            int x = BodyPadding.Left;
-            int w = ClientSize.Width - BodyPadding.Left - BodyPadding.Right;
-            if (MaxContentWidth > 0 && w > MaxContentWidth)
-            {
-                w = MaxContentWidth;
-                x = (ClientSize.Width - w) / 2;   // 大屏居中，别缩在左边一条
-            }
-            if (w <= 0) return;
-
-            Ui.Native.Freeze(_body);
-            try
-            {
-                int y = BodyPadding.Top;
-                for (int i = 0; i < _cards.Count; i++)
-                {
-                    Control c = _cards[i];
-                    c.SetBounds(x, y, w, Math.Max(1, c.Height));
-                    y += c.Height + Ui.Px(Gap);
-                }
-                _contentH = _cards.Count > 0
-                    ? y - Ui.Px(Gap) + BodyPadding.Bottom
-                    : BodyPadding.Bottom;
-                _body.SetBounds(0, 0, ClientSize.Width, Math.Max(_contentH, ClientSize.Height));
-            }
-            finally { Ui.Native.Unfreeze(_body); }
-
-            if (_scroll > MaxScroll) _scroll = MaxScroll;
-            _body.Top = -_scroll;
-            ComputeThumb();
-            Invalidate();
-        }
-
-        public void ScrollTo(int y)
-        {
-            int max = MaxScroll;
-            if (y < 0) y = 0;
-            if (y > max) y = max;
-            if (y != _scroll)
-            {
-                _scroll = y;
-                _body.Top = -_scroll;
-                ComputeThumb();
-                Invalidate();
-                if (ScrollChanged != null) ScrollChanged(this, EventArgs.Empty);
-            }
-        }
-
-        protected override void OnMouseWheel(MouseEventArgs e)
-        {
-            if (MaxScroll > 0)
-                ScrollTo(_scroll + (e.Delta > 0 ? -Ui.Px(70) : Ui.Px(70)));
-            base.OnMouseWheel(e);
-        }
-
-        protected override void OnResize(EventArgs e)
-        {
-            base.OnResize(e);
-            Recalc();
-        }
-
-        // -------- 自绘滚动条 --------
-
-        int _trackH;
-
-        void ComputeThumb()
-        {
-            int trackH = ClientSize.Height - Ui.Px(12);
-            if (MaxScroll <= 0 || trackH < Ui.Px(40)) { _trackH = 0; return; }
-            _trackH = Math.Max(Ui.Px(30), (int)((long)trackH * ClientSize.Height / Math.Max(1, _contentH)));
-            _thumbH = _trackH;
-            _thumbTop = Ui.Px(6) + (trackH - _trackH) * _scroll / Math.Max(1, MaxScroll);
-        }
-
-        int TrackX() { return ClientSize.Width - Ui.Px(10); }
-
-        void OnTrackDown(object s, MouseEventArgs e)
-        {
-            if (_trackH <= 0 || e.X < TrackX()) return;
-            if (e.Y >= _thumbTop && e.Y <= _thumbTop + _trackH)
-            {
-                _dragging = true;
-                _dragOffset = e.Y - _thumbTop;
-            }
-            else
-            {
-                ScrollTo(_scroll + (e.Y < _thumbTop ? -1 : 1) * ClientSize.Height * 4 / 5);
-            }
-        }
-
-        void OnTrackMove(object s, MouseEventArgs e)
-        {
-            if (!_dragging || _trackH <= 0) return;
-            int room = ClientSize.Height - Ui.Px(12) - _trackH;
-            int max = MaxScroll;
-            if (room <= 0 || max <= 0) return;
-            int y = e.Y - _dragOffset - Ui.Px(6);
-            if (y < 0) y = 0;
-            if (y > room) y = room;
-            ScrollTo(y * max / room);
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-            if (_trackH <= 0) return;
-            // 底槽用极淡的一层，滑块的对比度才够
-            Ui.FillRound(e.Graphics,
-                new Rectangle(TrackX() + Ui.Px(3), Ui.Px(6), Ui.Px(4), ClientSize.Height - Ui.Px(12)),
-                Ui.Px(2), _trackHot ? Ui.LINE : Ui.BG);
-            Ui.FillRound(e.Graphics,
-                new Rectangle(TrackX() + Ui.Px(3), _thumbTop, Ui.Px(4), _trackH),
-                Ui.Px(2), Ui.SUB);
-        }
-
-        protected override void OnMouseEnter(EventArgs e) { _trackHot = true; Invalidate(); base.OnMouseEnter(e); }
-        protected override void OnMouseLeave(EventArgs e) { _trackHot = false; _dragging = false; Invalidate(); base.OnMouseLeave(e); }
     }
 
     // ==================================================================== 卡片排版器
@@ -1477,18 +1165,16 @@ namespace AnkiAssistant
         }
 
         /// <summary>勾选框。高度按文字实际行数算，长说明才不会被切掉。</summary>
-        public CheckBox Check(string text, bool on)
+        public Check Check(string text, bool on)
         {
             _y += Ui.Px(7);
-            var cb = new CheckBox();
+            var cb = new Check();
             cb.Text = text;
             cb.Font = Ui.F(9f);
             cb.ForeColor = Ui.TEXT_BODY;
-            cb.BackColor = Ui.CARD;
-            cb.FlatStyle = FlatStyle.System;
             cb.Checked = on;
             Entry e = Reg(cb, 0, 1.0, 0, 0);
-            _y += Math.Max(Ui.Px(24), MeasureWrap(text, cb.Font, InnerGuess - Ui.Px(26)));
+            _y += Math.Max(Ui.Px(24), MeasureWrap(text, cb.Font, InnerGuess - AnkiAssistant.Check.TextInset()));
             return cb;
         }
 
@@ -1622,7 +1308,7 @@ namespace AnkiAssistant
                 {
                     // 高度跟着宽度走：文字换行数变了，高度自然要变
                     int aw = w;
-                    if (e.C is CheckBox) aw = w - Ui.Px(26);
+                    if (e.C is AnkiAssistant.Check) aw = w - AnkiAssistant.Check.TextInset();
                     h = MeasureWrap(e.C.Text, e.C.Font, aw);
                 }
                 if (h < 1) h = 1;

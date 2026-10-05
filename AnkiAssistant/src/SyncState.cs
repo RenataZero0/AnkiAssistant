@@ -1,7 +1,6 @@
 using System;
-using System.Drawing;
+using System.Collections.Generic;
 using System.IO;
-using System.Net;
 using System.Threading;
 
 namespace AnkiAssistant
@@ -9,16 +8,17 @@ namespace AnkiAssistant
     public enum SyncKind { Unknown, Ok, Error, Busy }
 
     /// <summary>
-    /// 与 Anki 桌面端的连接状态。顶栏角标和底部状态栏都看这里。
+    /// 内置引擎（rslib）的状态。顶栏角标和底部状态栏都看这里。
     ///
-    /// 探活要发 HTTP 请求，慢的时候能卡两三秒，所以永远在后台线程做，
-    /// 结果再回到 UI 线程（MainForm.NotifySyncState）。
+    /// 现在没有 HTTP 探活了：引擎就在本进程里，唯一会慢的是「打开收藏库」
+    /// （首次会建库、跑迁移），所以检查仍然放在后台线程做，结果再回到 UI 线程
+    /// （MainForm.NotifySyncState）。
     /// </summary>
     public static class SyncState
     {
         public static SyncKind Kind = SyncKind.Unknown;
-        public static string Detail = "正在检查 Anki…";
-        public static int AnkiConnectVersion;
+        public static string Detail = "正在打开收藏库…";
+        public static string EngineVersion = "";
         public static DateTime LastCheck = DateTime.MinValue;
 
         /// <summary>正在检查时不会重复发起。</summary>
@@ -29,7 +29,7 @@ namespace AnkiAssistant
             if (_busy) return;
             _busy = true;
             Kind = SyncKind.Busy;
-            Detail = "正在检查 Anki…";
+            Detail = "正在打开收藏库…";
             if (MainForm.Instance != null) MainForm.Instance.NotifySyncState();
 
             var t = new Thread(delegate()
@@ -37,12 +37,11 @@ namespace AnkiAssistant
                 try
                 {
                     string err = "";
-                    int v = 0;
                     bool ok = false;
                     try
                     {
-                        v = AnkiConn.Version();
-                        ok = true;
+                        EngineVersion = AnkiConn.EngineVersionText();
+                        ok = AnkiConn.Ping();
                     }
                     catch (Exception ex) { err = ex.Message; }
 
@@ -51,19 +50,19 @@ namespace AnkiAssistant
                     {
                         try
                         {
-                            System.Collections.Generic.List<string> decks = AnkiConn.DeckNames();
+                            List<string> decks = AnkiConn.DeckNames();
                             Store.Set("anki.decks", string.Join("\n", decks.ToArray()));
                         }
                         catch { }
                         try { due = AnkiConn.DueCount(""); } catch { }
                     }
 
-                    AnkiConnectVersion = v;
                     LastCheck = DateTime.Now;
                     Kind = ok ? SyncKind.Ok : SyncKind.Error;
                     Detail = ok
-                        ? ("已连接 Anki　·　AnkiConnect " + v + (due > 0 ? "　·　" + due + " 张待复习" : ""))
-                        : ("未连接 Anki：" + err);
+                        ? ("收藏库已就绪　·　引擎 " + (EngineVersion.Length > 0 ? EngineVersion : "rslib") +
+                           (due > 0 ? "　·　" + due + " 张待复习" : ""))
+                        : ("引擎不可用：" + err);
 
                     // 换个库以后笔记类型也可能变，顺手把列表刷一下
                     if (ok)
@@ -90,10 +89,10 @@ namespace AnkiAssistant
         public static string StatusText()
         {
             if (Kind == SyncKind.Ok)
-                return (Detail.Length > 0 ? Detail : "已连接 Anki") +
+                return (Detail.Length > 0 ? Detail : "收藏库已就绪") +
                        (LastCheck != DateTime.MinValue ? "　·　" + Ago(LastCheck) : "");
             if (Kind == SyncKind.Error) return Detail;
-            return "正在检查 Anki…";
+            return "正在打开收藏库…";
         }
 
         static string Ago(DateTime t)
@@ -104,7 +103,7 @@ namespace AnkiAssistant
             return (int)d.TotalHours + " 小时前检查";
         }
 
-        /// <summary>需要写库之前调用：没连上就把原因抛出来，别让用户对着按钮干等。</summary>
+        /// <summary>需要写库之前调用：引擎没起来就把原因抛出来，别让用户对着按钮干等。</summary>
         public static void RequireConnected()
         {
             if (Kind == SyncKind.Ok) return;
@@ -114,11 +113,10 @@ namespace AnkiAssistant
                 return;
             }
             throw new Exception(
-                "没有连上 Anki。请确认：\n" +
-                "  1. Anki 桌面端已经打开\n" +
-                "  2. 装过 AnkiConnect 插件（编号 " + AnkiConn.AddonCode + "）\n" +
-                "  3. 插件的端口是 8765（默认）\n" +
-                "装好插件后要重启 Anki。");
+                "内置引擎没起来。常见原因：\n" +
+                "  1. 安装目录里缺 rslib_aa.dll（重装一次安装版即可）\n" +
+                "  2. 上一个 AnkiAssistant 还在运行，收藏库被它占着 —— 关掉它再试\n" +
+                "  3. 收藏库目录没有写入权限：" + AnkiConn.AnkiDir());
         }
     }
 }

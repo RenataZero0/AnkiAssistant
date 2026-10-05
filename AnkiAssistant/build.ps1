@@ -40,5 +40,16 @@ if ($LASTEXITCODE -ne 0) { Write-Host "BUILD FAILED (exit $LASTEXITCODE)" -Foreg
 $cl = Join-Path (Split-Path -Parent $here) "CHANGELOG.md"
 if (Test-Path $cl) { Copy-Item $cl (Join-Path $here "CHANGELOG.md") -Force }
 
+# The built-in Anki engine: a native x64 dll that the exe loads with DllImport("rslib_aa.dll"),
+# so it has to sit next to the exe. Built by tools\BUILD_ENGINE_WINDOWS.md (cargo + rslib).
+$engineBin = "$here\tools\lib\rslib_aa.dll"
+$engineDst = "$here\rslib_aa.dll"
+if (Test-Path $engineBin) {
+    Copy-Item $engineBin $engineDst -Force
+    Write-Host ("engine: rslib_aa.dll ({0:N1} MB)" -f ((Get-Item $engineDst).Length / 1MB))
+} else {
+    Write-Host "WARN: tools\lib\rslib_aa.dll not found - the built-in engine will be unavailable (falling back to AnkiConnect)" -ForegroundColor Yellow
+}
+
 Write-Host "OK -> $out" -ForegroundColor Green
 Write-Host ("size: {0:N0} KB" -f ((Get-Item $out).Length / 1KB))

@@ -18,6 +18,8 @@ namespace AnkiAssistant.Setup
         public const string AppName = "Anki 助手 AnkiAssistant";
         public const string Publisher = "RenataZero0";
         public const string ExeName = "AnkiAssistant.exe";
+        /// <summary>内置引擎 dll 的文件名（必须和主程序用 DllImport 加载的名字一致）。</summary>
+        public const string EngineName = "rslib_aa.dll";
         public const string ShortcutName = "Anki 助手";
         public const string UninstallName = "卸载 Anki 助手.exe";
 
@@ -90,6 +92,17 @@ namespace AnkiAssistant.Setup
             // 先杀掉可能在运行的旧版本，否则文件被占用写不进去
             KillRunning(exe);
             Res.Extract("App.AnkiAssistant.exe", exe, true);
+
+            // --- 1b. 内置引擎（官方 Anki 后端 rslib 的 Windows 原生 dll）---
+            // 必须和 exe 同目录，程序用 DllImport("rslib_aa.dll") 加载它。
+            // 老安装包（还没打包引擎）里没有这个资源，此时 Res.Read 返回 null —— 不写、也不报错，
+            // 只是主程序启动时会提示「内置引擎不可用」。
+            byte[] engine = Res.Read("App.rslib_aa.dll");
+            if (engine != null)
+            {
+                p.Report(20, "正在写入内置引擎…");
+                File.WriteAllBytes(Path.Combine(dir, EngineName), engine);
+            }
 
             // --- 2. 安装包自己复制成卸载程序 ---
             p.Report(40, "正在写入卸载程序…");

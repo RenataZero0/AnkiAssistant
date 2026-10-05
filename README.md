@@ -159,22 +159,25 @@ powershell -ExecutionPolicy Bypass -File selftest.ps1
 
 ## 运行前置条件
 
-### Windows 版：需要本机开着 Anki + AnkiConnect 插件
+### Windows 版：自带引擎，不需要装 Anki、也不需要插件
 
-Windows 版**不链接 Anki 的任何代码**，它是通过 **AnkiConnect 插件**和本机正在运行的
-Anki 桌面端通信的（插件代码 **`2055492159`**，Anki 里「工具 → 插件 → 获取插件」输入这个数字安装）。
-默认端点 `http://127.0.0.1:8765`，协议是 HTTP POST：
+从 v1.17.0 起，Windows 版和安卓版走同一条路：把 **Anki 官方的 Rust 后端（rslib）编成
+`rslib_aa.dll` 随安装包一起装**，在本程序自己的收藏库里写卡，再由它直接与 AnkiWeb 同步。
 
-```json
-{"action": "...", "version": 6, "params": { ... }}
+```
+Anki 助手（内置引擎 rslib_aa.dll） → 自己的收藏库（数据目录\anki\） → 同步 → AnkiWeb 云端账号
 ```
 
 所以：
 
-- **Anki 桌面端必须开着**，AnkiConnect 必须装了，否则连不上（主界面会显示连接状态）
-- **收藏库（collection.anki2）、笔记类型、模板、媒体、AnkiWeb 同步全由 Anki 自己管** ——
-  我们只是它的远程编辑器；AnkiWeb 同步就是让 Anki 去点它自己那个同步按钮
-- 需要装 Anki：<https://apps.ankiweb.net/>
+- **不需要装 Anki 桌面端**，不需要 AnkiConnect 插件，也没有 `8765` 端口这回事
+- **不需要开着别的程序**：引擎就在安装目录里（`rslib_aa.dll`，约 32 MB，
+  `%LOCALAPPDATA%\Programs\AnkiAssistant\`）
+- 本程序**有自己的收藏库**，不读写 Anki 桌面端的 `%APPDATA%\Anki2\`；
+  想让手机 / 别的电脑上的卡片出现在这里，就在「设置 → 同步 → 登录 / 同步…」里登录 AnkiWeb，
+  首次做一次**全量「下载」**（AnkiWeb 对全量下载有频率限制，一天几次）
+- 引擎在同一份收藏库上只允许一个打开者：程序退出时会自己关闭收藏库；
+  若看到「收藏库正被占用」，先确认没有另一个 AnkiAssistant 还在运行
 
 ### Android 版：自带引擎，不需要电脑
 
@@ -221,12 +224,12 @@ Windows `AnkiAssistant\src\Secret.cs` 是 AES-128-CBC + HMAC-SHA256 密文，口
 
 | 内容 | 位置 |
 |---|---|
-| 设置（key=value），含每把 AI Key、皮肤、连接地址、「输出格式」的 configs.json | `%APPDATA%\AnkiAssistant\settings.ini` |
+| 设置（key=value），含每把 AI Key、皮肤、AnkiWeb 登录后的 hkey、「输出格式」的 configs.json | `%APPDATA%\AnkiAssistant\settings.ini` |
 | 头像、本地草稿 | `%APPDATA%\AnkiAssistant\data\`（`avatar.png`、`drafts\*.json`） |
 | 从 GitHub 拉下来的更新日志缓存 | `%APPDATA%\AnkiAssistant\CHANGELOG.md` |
 | 离线兜底的更新日志 | exe 同目录的 `CHANGELOG.md`（`build.ps1` 拷进去的） |
-| Anki 收藏库 / 卡片本身 | **由 Anki 桌面端自己管**（`%APPDATA%\Anki2\`），程序不碰 |
-| 程序本体 | 每用户安装到 `%LOCALAPPDATA%\Programs\AnkiAssistant\`，注册表写在 HKCU，可在「设置 → 应用」卸载 |
+| **内置引擎的收藏库**（卡片、笔记类型、媒体） | `%APPDATA%\AnkiAssistant\data\anki\`（`collection.anki2`、`collection.media\`、`collection.media.db2`） |
+| 程序本体 + 引擎 | 每用户安装到 `%LOCALAPPDATA%\Programs\AnkiAssistant\`（含 `rslib_aa.dll`），注册表写在 HKCU，可在「设置 → 应用」卸载 |
 
 设置放在 `%APPDATA%` 而不是 exe 旁边：安装版装在 `%LOCALAPPDATA%\Programs` 下，
 而且用户以后也可能手动挪 exe。早期版本把 `data\` 放在 exe 旁边，启动时会跑一次
@@ -283,7 +286,17 @@ commit / 工具链一致。是否把本项目整体改为 AGPL-3.0 由作者决�
 若不希望承担 AGPL 义务，可在设置里关掉「优先使用内置引擎」（改用本机 AnkiDroid），
 并自行从 APK 中移除 `lib/*/librsdroid.so` 与 `gen/` 目录。
 
-### Windows 版：不链接 Anki 代码
+### Windows 版：同样内含 Anki 官方后端（AGPL-3.0）
 
-Windows 版通过 **AnkiConnect 插件**（在其插件体系内加载，与本程序无链接关系）
-和本机 Anki 桌面端通信，**本身不包含也不链接 Anki 的代码或原生库**，因此不承担上述 AGPL 义务。
+从 v1.17.0 起，Windows 版把 Anki 官方 Rust 后端编成 `rslib_aa.dll` 一起分发，
+因此**与安卓版承担同样的 AGPL-3.0 义务**：
+
+| 组件 | 来源 | 许可 |
+|---|---|---|
+| `rslib`（Anki 官方 Rust 后端） | <https://github.com/ankidroid/Anki-Android-Backend>（含 `ankitects/anki` 子模块） | **AGPL-3.0** |
+| `aa-ffi`（把它包成 C ABI 的薄壳，本仓库自写） | `AnkiAssistant\tools\BUILD_ENGINE_WINDOWS.md` 附录 A（含全部源码） | 随本项目 |
+| protobuf / C# 侧编解码 | 手写，见 `AnkiAssistant\src\Pb.cs`、`Engine.cs` | 随本项目 |
+
+对应源码：`rslib` 即上面那个仓库（commit 与
+`AnkiAssistant\tools\BUILD_ENGINE_WINDOWS.md` 中记录的一致），把官方后端包成
+`rslib_aa.dll` 的 `aa-ffi` crate 源码完整收录在该文档的附录 A，编译步骤见该文档第 1–9 节。

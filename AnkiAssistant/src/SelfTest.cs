@@ -66,6 +66,9 @@ namespace AnkiAssistant
             CheckMarkdown();
             CheckChangelog();
             CheckNetwork();
+            // 内置 Anki 引擎调用层（Pb 编解码 + RPC 编号表）的离线断言。
+            // 这些断言不依赖 rslib_aa.dll，DLL 不在时也应当全部通过。
+            EngineSelfTest.Run(Check);
 
             string title = "Anki 助手 自检 " + GitHub.VersionTag;
             string summary = "PASS " + _pass + " / FAIL " + _fail + " / SKIP " + _skip;
@@ -360,11 +363,31 @@ namespace AnkiAssistant
             }
             catch (Exception) { wrapOk = false; }
             Check("Ui.Wrap 长中文能折行", wrapOk, "返回 null 或没折行");
+
+            // 密码框：占位提示要能看清（不遮点），用户真输入时**必须**恢复遮点。
+            // 回归过一次：Secret 的 getter 直接读 Inner.UseSystemPasswordChar，
+            // 占位文字把它关掉之后就再也恢复不了，密码变成明文。
+            try
+            {
+                Input si = new Input(false, true);
+                si.Secret = true;
+                si.Placeholder = "密码";
+                bool phVisible = si.IsMasked == false && si.Text == "";
+                si.Text = "abc";
+                Check("密码框占位提示不遮点", phVisible, "占位期间仍在遮点");
+                Check("密码框输入后恢复遮点", si.IsMasked, "输入后没有恢复遮点（密码会明文显示）");
+                Check("密码框取到的还是原文", si.Text == "abc", "取到的是 " + si.Text);
+                Check("密码框 Secret 状态还在", si.Secret, "Secret 被占位文字带偏了");
+            }
+            catch (Exception e)
+            {
+                Check("密码框占位/遮点", false, e.Message);
+            }
         }
 
         // ------------------------------------------------------------ 5.5 头像
         // 只测不联网的部分（邮箱 → 文件名、裁圆角、编解码）；真实媒体库走
-        // AnkiConnect 的那一段在网络自检里一律 SKIP，日常自检必须离线也能过。
+        // 引擎/联网的那一段一律 SKIP，日常自检必须离线也能过。
         static void CheckAvatar()
         {
             Check("头像缓存路径是 data\\avatar.png",
@@ -485,8 +508,8 @@ namespace AnkiAssistant
             bool ping = false;
             try { ping = AnkiConn.Ping(); }
             catch (Exception) { ping = false; }
-            if (ping) Check("AnkiConnect 探活", true);
-            else Skip("需要 Anki：AnkiConn.Ping()", "没连上本机 Anki（正常，不影响制卡以外的部分）");
+            if (ping) Check("内置引擎探活（打开收藏库）", true);
+            else Skip("需要引擎：AnkiConn.Ping()", "引擎没起来（正常，不影响制卡以外的部分）");
 
             // 网络调用给个上限，免得没网时自检卡住
             string ver = "";

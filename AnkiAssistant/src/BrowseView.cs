@@ -33,7 +33,7 @@ namespace AnkiAssistant
 
         // ===== 本机卡片：查询行 =====
         Panel _cardsTop;
-        ComboBox _deck;
+        Select _deck;
         Input _search;
         Pill _queryBtn;
         bool _narrow;                  // 窄窗口：搜索框换到第二行
@@ -501,27 +501,12 @@ namespace AnkiAssistant
             _cardsTop = new Panel { BackColor = Ui.BG };
             _cardsTop.Resize += delegate { LayoutQuery(); };
 
-            _deck = new ComboBox();
-            _deck.DropDownStyle = ComboBoxStyle.DropDownList;   // 只能选，不许手打牌组名
+            // 原来是系统 ComboBox：折叠态是 Win7 那块灰底、下拉还是个系统弹窗。
+            // 换成自绘的 Select（同文件 Ui.cs），弹出的也是自绘卡片列表。
+            _deck = new Select();
             _deck.Font = Ui.F(9.5f);
-            _deck.BackColor = Ui.PANEL;
-            _deck.ForeColor = Ui.INK;
-            _deck.FlatStyle = FlatStyle.Flat;
-            // 原生下拉框会画成系统灰底，这里自己画，跟圆角输入框一个路子
-            _deck.DrawMode = DrawMode.OwnerDrawFixed;
-            _deck.ItemHeight = Ui.Px(22);
-            _deck.DrawItem += delegate(object s, DrawItemEventArgs e)
-            {
-                bool sel = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-                Color bg = sel ? Ui.ACCENT_SOFT : Ui.PANEL;
-                using (var b = new SolidBrush(bg)) e.Graphics.FillRectangle(b, e.Bounds);
-                string txt = (e.Index >= 0 && e.Index < _deck.Items.Count)
-                    ? Convert.ToString(_deck.Items[e.Index]) : "";
-                Ui.TextVC(e.Graphics, txt, _deck.Font, sel ? Ui.ACCENT : Ui.INK,
-                    new Rectangle(e.Bounds.X + Ui.Px(7), e.Bounds.Y,
-                                  Math.Max(1, e.Bounds.Width - Ui.Px(12)), e.Bounds.Height));
-            };
-            _deck.Items.Add("全部牌组");
+            _deck.Placeholder = "全部牌组";
+            _deck.SetItems(new string[] { "全部牌组" });
             _deck.SelectedIndex = 0;
             _deck.SelectedIndexChanged += delegate
             {
@@ -825,12 +810,13 @@ namespace AnkiAssistant
 
         void RebuildDeckItems()
         {
-            _deck.Items.Clear();
-            _deck.Items.Add("全部牌组");
-            foreach (string d in _decks) _deck.Items.Add(d);
+            var items = new List<string>();
+            items.Add("全部牌组");
+            foreach (string d in _decks) items.Add(d);
+            _deck.SetItems(items.ToArray());
             int idx = 0;
             for (int i = 0; i < _decks.Count; i++) if (_decks[i] == _selectedDeck) idx = i + 1;
-            if (idx >= _deck.Items.Count) idx = 0;
+            if (idx >= items.Count) idx = 0;
             _deck.SelectedIndex = idx;
         }
 
@@ -927,11 +913,11 @@ namespace AnkiAssistant
             t.Start();
         }
 
-        /// <summary>没连上 Anki 时给一句能照着做的提示。</summary>
+        /// <summary>引擎没起来时给一句能照着做的提示。</summary>
         static string Tips()
         {
             if (SyncState.Kind == SyncKind.Error)
-                return "没连上 Anki，点右上角头像看怎么装 AnkiConnect";
+                return "内置引擎没起来，点右上角头像看怎么办";
             return SyncState.StatusText();
         }
 

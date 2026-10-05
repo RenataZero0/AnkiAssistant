@@ -23,7 +23,9 @@ namespace AnkiAssistant
 
         // 控件
         Card _topCard, _bottomCard;
-        Panel _center, _editPane;
+        Panel _center;
+        ScrollHost _editPane;
+        List<Card> _fieldCards = new List<Card>();  // 字段卡片（重建时统一 Dispose）
         MarkdownView _preview;
         Input _word, _deck, _tags;
         Label _labWord, _hintWord;      // 顶部「单词」块的字段名 / 提示（跟着当前格式走）
@@ -151,7 +153,13 @@ namespace AnkiAssistant
             tabs.Controls.Add(_tabEdit);
             tabs.Controls.Add(_tabPreview);
 
-            _editPane = new Panel { Dock = DockStyle.Fill, BackColor = Ui.BG, AutoScroll = true };
+            // 原来是 Panel.AutoScroll —— 那会露出系统那条带灰色箭头的经典滚动条。
+            // 换成自绘的 ScrollHost：同样的细条，跟设置页共用一套。
+            _editPane = new ScrollHost();
+            _editPane.Dock = DockStyle.Fill;
+            _editPane.BackColor = Ui.BG;
+            _editPane.Gap = 8;
+            _editPane.BodyPadding = new Padding(0, 0, Ui.Px(12), Ui.Px(4));
 
             _preview = new MarkdownView { Dock = DockStyle.Fill, Visible = false, BackColor = Ui.CARD };
             var prevCard = new Card { Dock = DockStyle.Fill };
@@ -270,8 +278,13 @@ namespace AnkiAssistant
         {
             _editPane.SuspendLayout();
             Ui.Native.Freeze(_editPane);
-            foreach (Control c in _editPane.Controls) c.Dispose();
-            _editPane.Controls.Clear();
+            foreach (Card old in _fieldCards)
+            {
+                if (old == null || old.IsDisposed) continue;
+                old.Dispose();          // Dispose 会自己从父容器摘掉
+            }
+            _fieldCards.Clear();
+            _editPane.ClearContent();
             _boxes.Clear();
 
             // 0 号字段就是顶部那个输入块（单词），这里只把字段名同步到顶部卡片的左上角，
@@ -280,11 +293,10 @@ namespace AnkiAssistant
             _hintWord.Location = new Point(_labWord.Right + Ui.Px(8), Ui.Px(12));
             _boxes.Add(_word);
 
-            int y = 0;
             for (int i = 1; i < _cfg.Fields.Count; i++)
             {
                 Field f = _cfg.Fields[i];
-                var c = new Card { Location = new Point(0, y), Height = Ui.Px(84), ShowBorder = true };
+                var c = new Card { Height = Ui.Px(84), ShowBorder = true };
                 c.Paint += delegate(object s, PaintEventArgs e)
                 {
                     Ui.Text(e.Graphics, f.Name, Ui.F(9f), Ui.SUB, Ui.Px(14), Ui.Px(8));
@@ -296,28 +308,41 @@ namespace AnkiAssistant
                 tb.BoxFill = Ui.PANEL;
                 tb.PadX = 10;
                 tb.PadY = 5;
+                // 字段框自己不带滚动条了：内容多了就让卡片长高，滚动交给整页。
+                tb.Scrollbars = ScrollBars.None;
+                tb.WordWrap = true;
                 tb.Location = new Point(Ui.Px(14), Ui.Px(30));
                 tb.Size = new Size(Ui.Px(400), Ui.Px(46));
                 c.Controls.Add(tb);
-                c.Resize += delegate { tb.Size = new Size(c.Width - Ui.Px(28), c.Height - Ui.Px(38)); };
-                _editPane.Controls.Add(c);
+
+                Card host = c;
+                Input box = tb;
+                box.TextChanged += delegate { GrowField(host, box); };
+                host.Resize += delegate
+                {
+                    box.Size = new Size(Math.Max(Ui.Px(80), host.Width - Ui.Px(28)),
+                                        Math.Max(Ui.Px(46), host.Height - Ui.Px(38)));
+                };
+
+                _editPane.Add(c);
+                _fieldCards.Add(c);
                 _boxes.Add(tb);
-                y += Ui.Px(92);
             }
 
-            _editPane.Resize += delegate { LayoutFields(); };
-            LayoutFields();
             Ui.Native.Unfreeze(_editPane);
             _editPane.ResumeLayout();
+            _editPane.Recalc();
         }
 
-        void LayoutFields()
+        /// <summary>字段框没滚动条了，文字换行变多就把它所在的卡片撑高。</summary>
+        void GrowField(Card host, Input box)
         {
-            int w = Math.Max(Ui.Px(320), _editPane.ClientSize.Width - Ui.Px(4));
-            foreach (Control c in _editPane.Controls)
-            {
-                if (c is Card) c.Width = w;
-            }
+            if (host == null || box == null || box.IsDisposed || host.IsDisposed) return;
+            int need = box.ContentHeight() + Ui.Px(42);
+            if (need < Ui.Px(84)) need = Ui.Px(84);
+            if (host.Height == need) return;
+            host.Height = need;
+            if (_editPane != null) _editPane.Recalc();
         }
 
         // ===== 预览 =====

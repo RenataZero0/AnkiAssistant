@@ -20,7 +20,7 @@ namespace AnkiAssistant
 
         readonly CardConfig _cfg;
 
-        Panel _fieldsOuter;
+        ScrollHost _fieldsOuter;
         Panel _rowsHost;
         readonly List<Panel> _rowPanels = new List<Panel>();
 
@@ -55,30 +55,71 @@ namespace AnkiAssistant
 
         // ================================================================ 上面：基础信息 + 提示词
 
-        Panel _basic;
+        ScrollHost _basic;
+
+        // 基础信息区是一摞绝对定位的控件，提示词框会随内容长高，
+        // 所以记下顺序和间距，长高后重新摞一遍（不然下面的控件会被压住）。
+        readonly List<Control> _basicOrder = new List<Control>();
+        readonly List<int> _basicGap = new List<int>();
+
+        void Reg(Control c, int gapDp)
+        {
+            _basicOrder.Add(c);
+            _basicGap.Add(Ui.Px(gapDp));
+        }
+
+        void RegGap(int gapDp)
+        {
+            _basicOrder.Add(null);
+            _basicGap.Add(Ui.Px(gapDp));
+        }
+
+        void RestackBasic()
+        {
+            int y = 0;
+            for (int i = 0; i < _basicOrder.Count; i++)
+            {
+                Control c = _basicOrder[i];
+                if (c == null) { y += _basicGap[i]; continue; }
+                if (c.IsDisposed) continue;
+                Control sameRow = c.Tag as Control;     // 「看拼出来的提示词」跟标签同一行
+                if (sameRow != null) { c.Top = sameRow.Top - Ui.Px(1); continue; }
+                c.Top = y;
+                y += c.Height + _basicGap[i];
+            }
+            if (_basic != null && _basic.ContentHost != null)
+                _basic.ContentHost.Height = Math.Max(y + Ui.Px(8), _basic.ClientSize.Height);
+        }
 
         void BuildBasic()
         {
-            _basic = new Panel();
+            // AutoScroll 会露出一条系统经典滚动条，换成自绘的 ScrollHost（绝对定位模式）
+            _basic = new ScrollHost();
             _basic.BackColor = Ui.CARD;
-            _basic.AutoScroll = true;
+            _basic.AutoLayout = false;
+            _basic.Horizontal = true;
+            _basic.BodyPadding = new Padding(0, 0, Ui.Px(4), Ui.Px(4));
             Body.Controls.Add(_basic);
 
+            Control host = _basic.ContentHost;
             int y = 0;
-            _name = AddInput(_basic, "名称", ref y, 420, false);
-            _noteType = AddInput(_basic, "笔记类型（Anki 里的 Note Type）", ref y, 420, false);
-            _deck = AddInput(_basic, "默认牌组", ref y, 420, false);
-            _tags = AddInput(_basic, "默认标签", ref y, 420, false);
-            _hintDefaults = AddNote(_basic, ref y,
+            _name = AddInput(host, "名称", ref y, 420, false);
+            _noteType = AddInput(host, "笔记类型（Anki 里的 Note Type）", ref y, 420, false);
+            _deck = AddInput(host, "默认牌组", ref y, 420, false);
+            _tags = AddInput(host, "默认标签", ref y, 420, false);
+            _hintDefaults = AddNote(host, ref y,
                 "牌组 / 标签 / 学科背景留空 = 用应用级默认值（" +
                 CardConfig.AppDefaultDeck + " · " + CardConfig.AppDefaultTags + "）。");
-            _subject = AddInput(_basic, "学科背景（会替换提示词里的 {subject}）", ref y, 620, false);
+            _subject = AddInput(host, "学科背景（会替换提示词里的 {subject}）", ref y, 620, false);
 
+            RegGap(12);
             y += Ui.Px(12);
-            _prompt = AddMulti(_basic, "提示词模板", ref y, 110, true);
-            _hintPrompt = AddNote(_basic, ref y,
+            _prompt = AddMulti(host, "提示词模板", ref y, 110, true);
+            _hintPrompt = AddNote(host, ref y,
                 "占位符：{word} 换成本次要查的词，{subject} 换成上面的学科背景。");
-            _sysPrompt = AddMulti(_basic, "系统提示词", ref y, 96, false);
+            _sysPrompt = AddMulti(host, "系统提示词", ref y, 96, false);
+
+            RestackBasic();
         }
 
         Input AddInput(Control host, string label, ref int y, int widthDp, bool secret)
@@ -90,6 +131,7 @@ namespace AnkiAssistant
             l.TextAlign = ContentAlignment.MiddleLeft;
             l.SetBounds(Ui.Px(2), y, Ui.Px(widthDp), Ui.Px(20));
             host.Controls.Add(l);
+            Reg(l, 2);
             y += Ui.Px(20) + Ui.Px(2);
 
             var t = new Input();
@@ -97,6 +139,7 @@ namespace AnkiAssistant
             t.Secret = secret;
             t.SetBounds(Ui.Px(2), y, Ui.Px(widthDp), Ui.Px(34));
             host.Controls.Add(t);
+            Reg(t, 6);
             y += Ui.Px(34) + Ui.Px(6);
             return t;
         }
@@ -110,6 +153,7 @@ namespace AnkiAssistant
             l.TextAlign = ContentAlignment.MiddleLeft;
             l.SetBounds(Ui.Px(2), y, Ui.Px(200), Ui.Px(20));
             host.Controls.Add(l);
+            Reg(l, 2);
 
             if (withPreview)
             {
@@ -117,18 +161,37 @@ namespace AnkiAssistant
                 pv.Text = "看拼出来的提示词";
                 pv.Font = Ui.F(8.5f);
                 pv.Cursor = Cursors.Hand;
+                pv.Tag = l;                     // 跟标签同一行
                 pv.SetBounds(Ui.Px(120), y - Ui.Px(1), Ui.Px(150), Ui.Px(22));
                 pv.Click += delegate { ShowPreview(); };
                 host.Controls.Add(pv);
+                Reg(pv, 0);
             }
             y += Ui.Px(20) + Ui.Px(2);
 
             var t = new Input(true, false);
             t.Font = Ui.F(9.5f);
+            // 提示词会很长，但这里不要系统那条经典滚动条：框随内容长高
+            t.Scrollbars = ScrollBars.None;
+            t.WordWrap = true;
             t.SetBounds(Ui.Px(2), y, Ui.Px(660), Ui.Px(heightDp));
             host.Controls.Add(t);
+            Reg(t, 6);
+            Input box = t;
+            box.TextChanged += delegate { GrowMulti(box); };
             y += Ui.Px(heightDp) + Ui.Px(6);
             return t;
+        }
+
+        /// <summary>多行提示词框没有滚动条了，内容变多就长高，再让上面的排布重摞一遍。</summary>
+        void GrowMulti(Input box)
+        {
+            if (box == null || box.IsDisposed) return;
+            int need = Math.Max(Ui.Px(64), box.ContentHeight() + Ui.Px(10));
+            if (box.Height == need) return;
+            box.Height = need;
+            RestackBasic();
+            if (_basic != null) _basic.Recalc();
         }
 
         Label AddNote(Control host, ref int y, string text)
@@ -140,6 +203,7 @@ namespace AnkiAssistant
             l.TextAlign = ContentAlignment.TopLeft;
             l.SetBounds(Ui.Px(2), y, Ui.Px(660), Ui.Px(18));
             host.Controls.Add(l);
+            Reg(l, 2);
             y += Ui.Px(18) + Ui.Px(2);
             return l;
         }
@@ -148,9 +212,11 @@ namespace AnkiAssistant
 
         void BuildFieldsArea()
         {
-            _fieldsOuter = new Panel();
+            _fieldsOuter = new ScrollHost();
             _fieldsOuter.BackColor = Ui.CARD;
-            _fieldsOuter.AutoScroll = true;
+            _fieldsOuter.AutoLayout = false;
+            _fieldsOuter.Horizontal = true;
+            _fieldsOuter.BodyPadding = new Padding(0, 0, Ui.Px(4), Ui.Px(4));
             Body.Controls.Add(_fieldsOuter);
 
             var head = new Label();
@@ -159,11 +225,11 @@ namespace AnkiAssistant
             head.ForeColor = Ui.INK;
             head.TextAlign = ContentAlignment.MiddleLeft;
             head.SetBounds(0, 0, Ui.Px(660), Ui.Px(22));
-            _fieldsOuter.Controls.Add(head);
+            _fieldsOuter.ContentHost.Controls.Add(head);
 
             _rowsHost = new Panel();
             _rowsHost.BackColor = Ui.CARD;
-            _fieldsOuter.Controls.Add(_rowsHost);
+            _fieldsOuter.ContentHost.Controls.Add(_rowsHost);
 
             BuildRows();
         }
@@ -198,9 +264,11 @@ namespace AnkiAssistant
             _rowsHost.Controls.Add(add);
 
             _rowsHost.Height = y + Ui.Px(34);
-            // 行比可视区宽时靠 AutoScroll 横向滚，别把列挤变形
+            // 行比可视区宽时靠 ScrollHost 的横向滚动，别把列挤变形
             int total = Ui.Px(WName + WKey + WHint + WLatex + 200);
             _rowsHost.Width = Math.Max(total, _fieldsOuter.ClientSize.Width);
+            _rowsHost.Top = Ui.Px(28);
+            _fieldsOuter.Recalc();
         }
 
         Panel MakeRow(int i)
@@ -214,14 +282,15 @@ namespace AnkiAssistant
             var tKey = RowInput(row, WName, WKey, f.Key);
             var tHint = RowInput(row, WName + WKey, WHint, f.Hint);
 
-            var latex = new CheckBox();
+            var latex = new Check();
             latex.Text = "公式";
             latex.Font = Ui.F(8.5f);
             latex.ForeColor = Ui.TEXT_BODY;
-            latex.BackColor = Ui.CARD;
-            latex.FlatStyle = FlatStyle.System;
             latex.Checked = f.Latex;
-            latex.SetBounds(Ui.Px(WName + WKey + WHint + 4), Ui.Px(6), Ui.Px(WLatex), Ui.Px(20));
+            // 自绘复选框的勾选框比系统那个大，52dp 里放不下「公式」两个字，
+            // 把框本身调小一点、列宽借掉右边那点空隙，别让文字被省略成「公…」。
+            latex.Box = 15;
+            latex.SetBounds(Ui.Px(WName + WKey + WHint + 2), Ui.Px(6), Ui.Px(WLatex + 10), Ui.Px(20));
             row.Controls.Add(latex);
 
             // 行内控件是显示态：改完就把值写回 cfg，免得换行时丢改动。
@@ -362,6 +431,7 @@ namespace AnkiAssistant
 
             ClientSize = new Size(ClientSize.Width, head + bodyH + foot);
             Body.Padding = new Padding(pad, Ui.Px(10), pad, Ui.Px(12));
+            RecalcBody();   // 改完窗口尺寸立刻同步正文容器，下面读的 ClientSize 才是新的
 
             int innerW = Body.ClientSize.Width - Body.Padding.Horizontal;
             int fieldsH = Ui.Px(250);
@@ -371,19 +441,23 @@ namespace AnkiAssistant
             _basic.Height = Math.Max(Ui.Px(120), Body.ClientSize.Height - fieldsH - Ui.Px(8));
             _fieldsOuter.SetBounds(0, _basic.Height + Ui.Px(8), innerW, fieldsH - Ui.Px(8));
 
-            foreach (Control c in _basic.Controls)
+            foreach (Control c in _basic.ContentHost.Controls)
             {
                 if (c is Input && ((Input)c).Multiline)
                     c.Width = Math.Max(Ui.Px(240), innerW - Ui.Px(4));
                 else if (c is Label && ((Label)c).Font.Size <= 8.6f)
                     c.Width = Math.Max(Ui.Px(200), innerW - Ui.Px(4));
             }
+            if (_prompt != null) GrowMulti(_prompt);
+            if (_sysPrompt != null) GrowMulti(_sysPrompt);
+            RestackBasic();
+            _basic.Recalc();
 
             int total = Ui.Px(WName + WKey + WHint + WLatex + 200);
             _rowsHost.Width = Math.Max(total, _fieldsOuter.ClientSize.Width - Ui.Px(4));
-            _fieldsOuter.AutoScrollMinSize = new Size(
-                Math.Max(total, _fieldsOuter.ClientSize.Width - Ui.Px(4)), _rowsHost.Height + Ui.Px(28));
+            _rowsHost.Left = 0;
             _rowsHost.Top = Ui.Px(28);
+            _fieldsOuter.Recalc();
 
             _hintDefaults.Height = Ui.Px(18);
             _hintPrompt.Height = Ui.Px(18);
@@ -411,8 +485,8 @@ namespace AnkiAssistant
                 var boxes = new List<Input>();
                 foreach (Control c in row.Controls) if (c is Input) boxes.Add((Input)c);
                 if (boxes.Count < 3) continue;
-                CheckBox lx = null;
-                foreach (Control c in row.Controls) if (c is CheckBox) { lx = (CheckBox)c; break; }
+                Check lx = null;
+                foreach (Control c in row.Controls) if (c is Check) { lx = (Check)c; break; }
                 CommitRow(i, boxes[0], boxes[1], boxes[2], lx == null ? (bool?)null : lx.Checked);
             }
 

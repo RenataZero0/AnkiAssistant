@@ -135,8 +135,8 @@ namespace AnkiAssistant.Setup
             _pageWelcome = NewPage();
             AddText(_pageWelcome, "这个程序会做什么", 16, true, Ink);
             AddText(_pageWelcome,
-                "· 连上本机的 Anki（AnkiConnect），浏览牌组、查看卡片\n" +
-                "· 新建/编辑卡片，可以交给 AI 帮你写例句和释义\n" +
+                "· 内置官方 Anki 引擎：自己登录 AnkiWeb、自己同步，不需要 AnkiConnect 插件\n" +
+                "· 浏览牌组与卡片、新建/编辑卡片，可以交给 AI 帮你写例句和释义\n" +
                 "· 内置卡面编辑器，排版、主题、头像都在这里调\n" +
                 "· 检查更新并从 GitHub 下载新版本",
                 16, false, Sub, 42, 120);
