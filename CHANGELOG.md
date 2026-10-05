@@ -1,3 +1,25 @@
+## v1.16.0 · 2026-10-05 —— Windows 版首发
+
+### 新增
+- **Windows 版**（仓库里的 `AnkiAssistant\`）：与安卓版功能对齐的桌面程序 —— AI 制卡、浏览与本地草稿、
+  输出格式（可自定义字段、默认牌组、标签与学科背景）、五套皮肤（含深色）、头像、更新日志与检查更新
+- **安装程序**（`AnkiAssistantSetup\`）：每用户安装（不弹 UAC），登记开始菜单/桌面快捷方式与卸载项，
+  支持 `--silent` 静默安装、`--uninstall` 卸载、`--tray` 开机自启
+- 仓库重组为三个目录：`AnkiAssistant`（Windows 版）、`AnkiAssistantAndroid`（安卓版）、
+  `AnkiAssistantSetup`（安装器）；根 `README.md` 重写，并新增 `GITHUB_SETUP.md`
+
+### 改
+- Windows 版通过 **AnkiConnect** 与本机 Anki 桌面端通信（需要 AnkiConnect 插件 `2055492159`），
+  不直接读写收藏库文件；安卓版仍是内置引擎，两者数据经 AnkiWeb 同步保持一致
+- 两端共用同一个版本号，一个 Release 同时发布 `AnkiAssistant-Setup.exe` 与
+  `AnkiAssistantAndroid\AnkiAssistant.apk`
+
+### 修
+- **内置「英语词汇」格式的「例句」字段永远是空的**：AI 返回的 JSON 里有 `example`，
+  但解析只保留 6 个规范键（音标/词性/定义/公式/易混/中文），其余键被丢掉。
+  现在额外键会原样透传（规范键仍优先），自定义格式里的任何字段都能拿到值
+
+---
 ## v1.15.8 · 2026-10-03 —— 旋转后头像变蓝/灯变灰/弹窗无头像
 
 ### 修

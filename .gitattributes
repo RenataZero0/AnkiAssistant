@@ -1,0 +1,22 @@
+# Do not let git touch line endings of binary files.
+*.png      binary
+*.ico      binary
+*.woff     binary
+*.ttf      binary
+*.apk      binary
+*.exe      binary
+*.so       binary
+*.jar      binary
+*.keystore binary
+*.idsig    binary
+*.zip      binary
+
+# Text files: normalize per platform.
+* text=auto
+*.ps1  text eol=crlf
+*.bat  text eol=crlf
+*.cs   text eol=crlf
+*.java text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.xml  text eol=lf

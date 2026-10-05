@@ -1,0 +1,361 @@
+# Anki 助手 · Android 版
+
+对着 `PRMOPT.md` 第二节「Anki 协助」做的安卓应用：**输入一个词 → AI 按固定格式填好卡背 → 存进 Anki → 自动同步到 AnkiWeb 云端**，并且可以在应用里浏览自己已有的卡片。
+
+**成品：`AnkiAssistant.apk`（约 700 KB，minSdk 21 / targetSdk 34，已签名，可直接安装）**
+
+- 手机：底部横栏切换「制卡 / 浏览 / 设置」
+- 平板（最短边 ≥ 600dp）：左侧常驻选择栏（100dp）。侧栏做成分层结构，不再是一整条死白：
+  顶部是圆角应用标识，中间是三个导航项（上下等权重留白，垂直居中），底部是**Anki 连接状态灯**
+  （绿=连得上 / 红=连不上 / 黄=检测中；点一下重新检测，启动时自动测一次，保存设置后也会复测）；
+  底色是极淡的横向渐变，与内容区分层
+- 顶栏标题与内容卡片左边缘对齐
+- 制卡页只有两块：单词卡片 + **编辑器卡片**。牌组 / 标签 / 「从 Anki 选择」/ 保存按钮都在**编辑区内部**（`assets/editor.html` 的 `#metaPane`），跟着字段一起滚动，不占固定面板；
+  这些控件通过 `editor.addJavascriptInterface(bridge, "Android")` 回调 Java：`Android.pickDeck()` / `Android.saveNote(deck,tags)` / `Android.saveDraft(deck,tags)` / `Android.tagForDeck(deck)`
+- 设置页的勾选框是"方块 + 独立文字"的一行（不再用 `CheckBox.setText`），整行 `Gravity.CENTER_VERTICAL`：
+  方块和文字都在行内垂直居中，两者中心必然重合（多行文字也一样），不会再出现"方块跑到两行中间"
+- 编辑区顶部的「编辑/预览」+ 工具栏是**同一个** `#topSticky` sticky 容器（各自 `position: sticky` + 硬编码 `top:48px` 会因 tab 实际高度不同而错位、滚动时互相追着重排 → 抖动）；容器再套一层 `translateZ(0)` 提升为合成层
+- 预览页只有「显示答案」一个按钮（夜间模式已按用户要求移除）；字段为空时显示"还没有输入单词 / 还没有内容"的空状态提示
+- 编辑区的灰色占位文字全部是**格式说明**（如 `英 /…/；美 /…/`），不放任何假数据（早先那版写了假的音标，会误导人）
+- 牌组 → 标签自动映射：四个数学牌组 → `ALevel::Maths`，`A Level Physics` → `ALevel::Physics`，其它牌组不动标签
+- 公式：内置 MathJax 3.2.2（离线，不用联网），预览与写入 Anki 的内容都是 Anki 标准 `\( ... \)` 写法
+
+---
+
+## 一、需求对照（PRMOPT.md 第二节第 2 条）
+
+| 要求 | 实现 |
+|---|---|
+| (1) 适配平板、手机端 | 见上；同一份代码按最短边 600dp 自动切布局，转屏不重建 Activity（编辑到一半的卡片不会丢） |
+| (2) 调用 Anki API 自动保存到云端账号 | 内置 Anki 官方引擎（rslib/rsdroid）：写本机收藏库 + 同步到 AnkiWeb |
+| (3) 可以查看我的 Anki 内容 | 浏览页：牌组下拉、Anki 搜索语法、笔记列表、卡片详情（正面/背面按真实模板渲染，含 MathJax）、删除、`guiEditNote` 在电脑上打开 |
+| (4) 主界面输入 + Anki 级输入/预览 | 见「编辑器能力」；单词输入即卡片正面，AI 填充后逐项可改 |
+| (5) 手机底栏 / 平板左侧选择框 | 见上 |
+| (6) 复用 StudyCompanion 的开发经验 | 见「踩过的坑（务必先读）」—— 这些都是这次真机调试中真实撞到并修掉的 |
+
+### 编辑器能力（第 4 条的「Anki 的所有功能」）
+
+编辑区是一个 `contenteditable` 页面（`assets/editor.html`），工具栏与 Anki 桌面端一致：
+
+- 加粗 / 斜体 / 下划线 / 删除线 / 文字颜色 / 荧光高亮 / 清除格式
+- 项目符号 / 编号列表 / 引用 / 行内代码
+- 挖空 `{{c1::...}}`（预览里高亮显示）
+- 行内公式 `\( ... \)`、独立公式 `\[ ... \]`
+- 撤销 / 重做；每个字段可切 **HTML 源码** 模式直接改 HTML
+- 预览页用**真正的卡片模板**渲染（模板/CSS 就是写进 Anki 笔记类型的那一份），支持「显示答案 / 隐藏答案」与夜间模式
+- 公式渲染用内置 MathJax 3.2.2（与 Anki 相同的定界符），离线可用
+
+---
+
+## 二、卡片格式
+
+字段（写进 Anki 的笔记类型「专业术语卡」）：
+
+```
+单词 | 音标 | 词性 | 定义 | 关联公式/符号 | 易混 | 中文
+```
+
+正面 = `{{单词}}`；背面按 `PRMOPT.md` 第二节第 3 条的样式渲染，空字段连标签一起隐藏：
+
+```
+velocity
+────────────────
+【音标】英 /vəˈlɒsəti/；美 /vəˈlɑːsəti/
+【词性】n
+【定义】(n) the rate of change of displacement with respect to time; a vector quantity
+【关联公式/符号】 \(\vec{v}=\dfrac{\Delta \vec{s}}{\Delta t}\)
+【易混】speed /spiːd/ n. 速率，标量，无方向
+        acceleration /əkˌseləˈreɪʃn/ n. 加速度，速度的变化率
+【中文】速度（矢量）
+```
+
+**格式按你 Anki 里已有的卡片对齐**（我读了本机 `Anki2\账户 1\collection.anki2` 里那 9 张卡）：
+
+- 公式**只用行内** `\( ... \)`，不用 `\[ ... \]` —— 你现有卡片（如 `\(ax^2+bx+c=0,\ a\neq0\)`）都是这个写法，独立公式在预览里会占掉整整一行
+- 【音标】写 **英 /…/；美 /…/**
+- 【词性】用 `n`、`adj/n`（不加句点）
+- 【定义】用 `(n) ...; (adj) ...`（括号里不带句点）
+- 【易混】每行写成 `词 /音标/ 词性缩写 中文释义`（词性用英文缩写，不用破折号连接），例：`speed /spiːd/ n. 速率，标量，无方向`
+- 【中文】是参考你现有卡片补的一行，留空则不显示
+- 【中文】是参考你现有卡片补的一行，留空则不显示
+
+词性/释义/公式/易混/中文全部由 AI 按提示词生成，生成后可逐项手改。
+
+---
+
+## 三、卡片写入与同步（内置引擎）
+
+**不需要电脑，也不需要装 AnkiDroid**：APK 里带着 Anki 官方的 Rust 后端（rslib/rsdroid），
+在设备上自己维护一个收藏库，并由它直接与 AnkiWeb 同步。编译方法见 `tools/BUILD_ENGINE.md`。
+
+```
+Anki 助手（内置引擎） → 本机收藏库（filesDir/collection.anki2） → 同步 → AnkiWeb 云端账号
+```
+
+设置 → **AnkiWeb 同步**：填邮箱 + 密码 → 点「登录并同步」。
+- 密码只用于登录，**不会保存在设备上**；登录后只保留后端签发的 hkey
+- 首次同步如果云端已有内容，会让你选择「上传本机」或「下载云端」（云端才是你的真实数据时选下载）
+- 之后每次点同步都是增量同步，并顺带同步媒体文件
+
+兜底：如果某台设备的 ABI 没有内置库（或编译时被移除），会退回**本机 AnkiDroid**（装了才生效）。
+
+### 输出格式 config
+
+设置 → **输出格式（config）**：决定 AI 按什么格式产出、卡片有哪些字段。
+- 内置一套默认（A Level / NCUK IFY 数学物理术语卡），开箱即用
+- 「新建」可以自定：名字、字段清单（每行 `字段名 = AI键 = 提示`，第一行是卡片正面）、提示词（支持 `{word}` / `{subject}`）
+- 每个自定义 config 会生成自己的 Anki 笔记类型（字段与正反面模板按 config 生成）
+- 制卡页的输入框会**按当前 config 动态重建**
+
+## 四、AI 配置
+
+设置 → AI 自动填充，选服务商后填 API Key：
+
+| 预设 | 接口 | 备注 |
+|---|---|---|
+| DeepSeek | `api.deepseek.com/chat/completions` | 便宜，效果好 |
+| 豆包（火山方舟） | `ark.cn-beijing.volces.com/api/v3/chat/completions` | 模型名按方舟控制台里的 ID 填 |
+| 智谱 GLM-4.5-Flash | `open.bigmodel.cn/api/paas/v4/chat/completions` | 该模型**免费**（[官方免费模型列表](https://docs.bigmodel.cn/cn/guide/models/free/glm-4.5-flash)），注册即用。实测质量明显好于 glm-4-flash（音标/释义更准，公式会带 `\(...\)` 定界符） |
+| 硅基流动 SiliconFlow | `api.siliconflow.cn/v1/chat/completions` | 有免费模型 |
+| 自定义 | 任意 OpenAI 兼容 `/chat/completions` | 本地 mock、其他厂商都走这里 |
+
+**APK 里不内置任何 API Key** —— 打包进 APK 的密钥任何人都能提取盗用。上面几个都是一注册就有免费额度/免费模型。
+**每个服务商各存一把 Key**：切换服务商时会自动带出该服务商上次填的 Key，不用反复粘贴（旧版本的单一 Key 会自动迁移到当前服务商名下）。
+
+### 思考模式（智谱 glm-4.5/4.7）
+
+思考型模型会先输出一大段推理（`reasoning_content`），这段**也算输出 token**。实测 glm-4.5-flash 生成同一张卡：
+
+| 模式 | 耗时 | 思考内容 | 输出 JSON |
+|---|---|---|---|
+| 开思考（默认参数） | 23s | 1279 字 | **被截断**（推理吃掉输出预算）→ 需要重试 |
+| 关思考（`thinking={"type":"disabled"}`） | 4.5s | 无 | 一次成型 |
+
+所以**默认关闭思考**；想要看推理过程，到「设置 → AI 自动填充 → 让思考型模型先思考」勾上即可，
+思考内容会显示在制卡页底部的「AI 思考过程（N 字）」折叠面板里（默认只有一行，点开是限高滚动区）。
+
+不管开不开思考，解析失败时 App 都会**自动重试一次**（改用严格提示词并强制关思考），
+再失败才降级成"原样放进定义"。
+
+**正确率实测（同一套提示词、每模式 5 个词，用 `tools/thinking_accuracy.py` 跑）**
+
+| | 关思考 | 开思考 |
+|---|---|---|
+| 平均耗时 | **5.9s** | 35.0s |
+| 平均 tokens | **484** | 1198（思考 1511 字） |
+| JSON 可解析 | 5/5 | 5/5 |
+| 音标英+美 / 词性 / 易混格式 | 5/5 · 5/5 · 5/5 | 5/5 · 5/5 · 5/5 |
+
+**结论：关掉思考没有可测的正确率损失**（内容抽查两边都对），但省 6 倍时间和 2.5 倍 token。
+个别差异是双向的：开思考偶尔会把词条自己列进【易混】、多加冗余义项；关思考偶尔【易混】里多空行、
+公式忘了写定界符（App 会自动补）。
+
+之前试过 `text.pollinations.ai`（免密钥），实测现在返回 `402 Payment Required`，已经不是免费服务，所以去掉了这个预设。
+
+---
+
+## 五、项目结构
+
+```
+AnkiAssistant\
+├─ AnkiAssistant.apk          成品（已签名，可直接安装）
+├─ CHANGELOG.md               ★更新日志的唯一来源；build.ps1 会拷进 assets\CHANGELOG.md 打包进 APK
+├─ build.ps1                  编译 APK（aapt2 + javac + d8 + zipalign + apksigner，不需要 Gradle）
+├─ selftest.ps1               在电脑 JVM 上跑纯逻辑自检（126 项断言）
+├─ debug.keystore             自签证书（覆盖安装请保留同一个）
+├─ AndroidManifest.xml
+├─ assets\
+│   ├─ CHANGELOG.md           构建时从工程根目录拷来的副本（App 里离线查看用，不要手改）
+│   ├─ editor.html            编辑器 + 预览（模板引擎、MathJax、cloze、HTML 源码模式）
+│   └─ mj-*.js / mj-woff-*.woff   MathJax 3.2.2（**必须平铺在根目录**，见踩坑第 1 条）
+├─ res\                       图标 / 字符串 / 备份规则
+├─ src\com\ankiassistant\
+│   ├─ MainActivity.java      顶栏、手机底栏 / 平板左栏（含 Anki 状态灯）、页面切换、转屏重排
+│   ├─ CreateView.java        制卡页：单词 → AI 填充 → 富文本编辑 → 存 Anki / 存草稿
+│   ├─ BrowseView.java        浏览页：牌组/搜索/笔记列表/卡片详情/删除/同步/本地草稿
+│   ├─ SettingsView.java      设置：Anki 连接、AI、默认值、更新内容
+│   ├─ Changelog.java         更新日志：GitHub 缓存优先 → assets 内置副本兜底 + 版本号比对
+│   ├─ ChangelogView.java     更新日志阅读器（自绘 Markdown + 版本快捷跳转）
+│   ├─ CardFormat.java        ★格式的唯一事实来源：提示词、AI 回复解析、字段组装、模板与 CSS
+│   ├─ AiClient.java          OpenAI 兼容客户端 + 预设（可自检）
+│   ├─ AssetServer.java       仅监听 127.0.0.1 的静态资源服务器（给 WebView 供 assets）
+│   ├─ Store.java             设置与本地草稿（SharedPreferences）
+│   ├─ Ui.java / IconDrawable.java   配色与控件样式 / Canvas 画的图标
+│   ├─ Th.java / CrashHandler.java   线程小工具 / 崩溃捕获（崩溃栈写进应用私有目录，界面上没有查看入口）
+└─ tools\
+    ├─ SelfTest.java          JVM 自检（格式、提示词解析、请求构造、响应解析）
+    ├─ mock_servers.py        联调用：假 AI(8899)
+        ├─ inspect_anki_collection.py  只读解析本机 Anki 收藏库（看已有卡片的写法）
+    ├─ prepare_assets.py      MathJax 资源扁平化（打包前跑，见踩坑第 1 条）
+    ├─ make_icons.py          生成启动图标
+    ├─ check_html_js.js       校验 editor.html 内联 JS 语法
+    └─ lib\
+        ├─ json.jar           org.json（电脑端自检用，安卓端由 android.jar 提供）
+        └─ py\zstandard       读新版 Anki 收藏库（schema 18，字段是 zstd 压缩）用，可选
+```
+
+---
+
+## 六、重新编译 / 自检
+
+```powershell
+cd AnkiAssistant
+powershell -ExecutionPolicy Bypass -File selftest.ps1     # 先跑纯逻辑自检
+powershell -ExecutionPolicy Bypass -File build.ps1        # 再打包
+```
+
+依赖的绝对路径写在 `build.ps1` 开头（`D:\android-sdk`、`D:\Program Files\Java\jdk-21`），换机器改那两行。
+
+### 内置 Key 与"新设备零输入"
+
+新设备装完**什么都不用填**就能用，靠的是这几处内置默认值（都在代码里，不在本机上）：
+
+| 项目 | 值 / 位置 |
+|---|---|
+| 电脑 IP | `Store.DEFAULT_ANKI_HOST` = `192.168.71.112`（换网络时在设置里改一次） |
+| AnkiWeb 账号 | 登录一次即可（只存 hkey） |
+| AI 服务商 / 模型 / 接口地址 | 智谱 GLM-4.5-Flash（免费）/ `glm-4.5-flash` / `open.bigmodel.cn/api/paas/v4/chat/completions` |
+| AI Key | `Secret.java` 里的 **AES-GCM 密文**（见下） |
+| 默认牌组 / 标签 / 学科背景 | `A Level Pure Mathematics` / `ALevel::Maths` / `CIE A-Level / NCUK IFY 数学、物理术语` |
+| 自动同步 / 思考模式 | 开启 / 关闭 |
+
+**内置 Key 怎么做的**：APK 里只有密文（`Secret.CT_B64`）；密钥由「口令 + 随机 salt」经 PBKDF2-HMAC-SHA256(12000)
+派生，口令拆成 4 段分散在不同方法里、其中一段反序存放，直接 `strings` 抓不到。
+设置里**手填的 Key 优先于内置 Key**（`Store.aiApiKeyFor`），发现异常随时换一把，不用发版。
+
+**换 Key（三步）**：
+
+```powershell
+java tools\MakeSecret.java "<新的Key>" "<新的40位口令>"
+# 把输出的 SALT_B64 / IV_B64 / CT_B64 三行粘进 src\com\ankiassistant\Secret.java
+# 同时按注释里的分段方式改 assemblePass()，然后 selftest + build + 发版
+```
+
+**必须知道的风险**：只要密钥随 APK 分发，就一定能被逆向出来，加密只是把「随手提取」提高到「需要真正逆向」。
+所以本项目**只内置智谱这把免费档 Key**；付费余额的 Key（如 DeepSeek）不打包，要加就用上面那条命令单独生成。
+真要完全不可提取，只能把 Key 放到自己的服务端做代理转发。
+### 第三方组件与许可（AGPL 注意）
+
+本 APK **内含 Anki 官方 Rust 后端**（`librsdroid.so`），用于「内置引擎」模式：
+
+| 组件 | 来源 | 许可 |
+|---|---|---|
+| `rslib` / `rsdroid` | <https://github.com/ankidroid/Anki-Android-Backend>（含 `ankitects/anki` 子模块） | **AGPL-3.0** |
+| protobuf-javalite | `com.google.protobuf:protobuf-javalite` | BSD-3-Clause |
+| MathJax | <https://www.mathjax.org> | Apache-2.0 |
+
+`rslib/rsdroid` 采用 AGPL-3.0：**分发包含它的 APK 时，必须一并提供对应源码与许可声明**。
+对应源码即上面那个仓库（版本与 `tools/BUILD_ENGINE.md` 中记录的 commit / 工具链一致）。
+是否把本项目整体改为 AGPL-3.0 由作者决定；若不希望承担 AGPL 义务，
+可在设置里关掉「优先使用内置引擎」，此时改用本机 AnkiDroid，
+并自行从 APK 中移除 `lib/*/librsdroid.so` 与 `gen/` 目录。
+
+内置引擎的编译步骤见 **`tools/BUILD_ENGINE.md`**。
+### 仓库与自动更新
+
+- 本工程是**独立仓库**：<https://github.com/RenataZero0/AnkiAssistant>
+  （原先把 Anki 助手放在 StudyCompanion 仓库里，v1.5.0 起拆成独立仓库，两边互不干扰）
+- App 内「设置 → 更新内容 → 检查更新」会匿名读该仓库的**最新 Release**，
+  与本机版本做数值比较（`Updater.compareVersion`：2.1.10 > 2.1.9 这种不会判错），
+  有新版本就弹出说明，点「下载并安装」把 APK 下到 `cache/update/` 并交给系统安装器
+- 仓库地址写在 `Updater.OWNER / Updater.REPO` 两行；仓库是公开的，**查更新与下载都不需要令牌**
+- 只做「检查 + 下载 + 交给系统安装器」，不做静默安装（那需要 root 或设备管理员）
+
+**发版流程（每次迭代）**
+
+1. 改 `CHANGELOG.md` 顶部加一节 `## vX.Y.Z · 日期 —— 标题`
+2. 改 `src\com\ankiassistant\Version.java` 的 `VERSION_TAG` / `VERSION_NUMBER`
+3. `build.ps1` 打包出 `AnkiAssistant.apk`（版本号自动同步到 manifest）
+4. `git commit && git push`（仓库本地已配 `http.proxy=http://127.0.0.1:7890`，公司/校园网环境必需）
+5. 在 GitHub 建 **Release，tag 必须与 `VERSION_TAG` 完全一致**（如 `v1.5.0`），
+   并把 `AnkiAssistant.apk` 作为附件传上去 —— 旧版本才能检查到这次更新
+   （命令行做法见 `tools/` 之外的记录，或直接用网页界面拖拽）
+### 版本号与更新日志（每次迭代都这么做）
+
+1. 在 `CHANGELOG.md` **顶部**新增一节：`## vX.Y.Z · 日期 —— 一句话标题`，下面用 `### 新增 / 调整 / 修` 分类
+2. 把 `src\com\ankiassistant\Version.java` 的 `VERSION_TAG` 与 `VERSION_NUMBER` 加一档
+3. `build.ps1` 会自动把 `CHANGELOG.md` 拷进 `assets\CHANGELOG.md` 再打包（内置副本，保证离线也有东西看）
+4. 打开「设置 → 更新内容 → 查看更新内容」时会**先联网拉一次最新日志**
+   （`raw.githubusercontent.com/.../main/CHANGELOG.md`，匿名可读、不需要令牌），成功就写进应用私有目录当缓存；
+   拉不到就用缓存 / 内置副本，并在标题下写明来源：
+   「来自 GitHub 最新版（缓存于 MM-dd HH:mm）」或「来自应用内置副本（离线）· 在线更新失败：<原因>」
+   —— 与 StudyCompanion 的更新日志读取方式**完全一致**（缓存优先 → 内置副本兜底）
+4. 版本号只有一处：`Version.java`。`build.ps1` 从它推导 manifest 的 `versionName/versionCode`，
+   不会出现"APK 显示 1.0、代码里是别的版本"这种漂移
+5. 如果打包的日志里最新版本和运行的版本不一致，设置页会主动黄字提醒（构建时忘了改版本号）
+
+自检覆盖：卡片字段与模板、`{{#字段}}` 条件块成对、提示词里的格式约束（行内公式 / 英美音标 / 中文行、**易混的英文词性**）、
+**提示词里那段"输出示例"本身必须是合法 JSON**（实测模型会照着坏示例写）、
+AI 回复的各种脏数据（```json 围栏、前后废话、中文键名、非 JSON、**全角冒号 / 键后丢引号的坏 JSON**、语法全坏时按字段名硬抠）、
+公式兜底（裸 LaTeX 自动补 `\(...\)`、`$...$` 统一成 `\(...\)`）、
+牌组→标签映射、思考模式参数、重试提示词、字段转义与换行处理、
+CardConfig 构造与 JSON 往返、AI 请求体与响应解析、公式归一化。
+
+### 真机联调（不装 Anki、不花 API 额度）
+
+```powershell
+python tools\mock_servers.py                 # 后台跑两个假服务
+adb reverse tcp:8765 tcp:8765                # 让手机把 127.0.0.1:8765 转发到电脑
+adb reverse tcp:8899 tcp:8899
+python tools\seed_mock_note.py               # 塞两张测试卡片
+```
+
+然后在应用里：设置 → AI 选「自定义」→ 接口地址填 `http://127.0.0.1:8899/chat/completions`，
+Anki 的 IP 留空（默认就是 `127.0.0.1:8765`）。所有请求都会记到 `tools/mock_log.txt`，
+可以直接核对 App 发出的 `createModel` / `addNote` 报文。
+
+---
+
+## 七、踩过的坑（改代码前务必先读）
+
+1. **Windows 上 aapt2 会把嵌套 assets 写成反斜杠路径。**
+   APK 里真实存在的是 `assets/mathjax\tex-mml-chtml.js`，`AssetManager` 把 `\` 当成普通文件名字符，
+   于是 `assets.open("mathjax/tex-mml-chtml.js")` 抛 `FileNotFoundException`、`list("mathjax")` 返回空。
+   现象：页面能渲染，但所有相对路径的脚本/字体 404（MathJax 永远不生效）。
+   → 所有资源**平铺在 assets 根目录**（`tools/prepare_assets.py` 生成 `mj-*`），URL 路径映射写在 `AssetServer.mapAsset()`。
+   定位手段：`assets.list("")` 打出来看一眼就明白了。
+
+2. **WebView 读不了 `file:///android_asset/` 下 1 MB 以上的资源。**
+   1.17 MB 的 `tex-mml-chtml.js` 直接触发 `<script>` 的 error 事件，几十 KB 的探测文件却正常
+   （把 assets 改成不压缩也没用，所以不是压缩的问题）。
+   → 应用内起一个**只监听 127.0.0.1** 的小 HTTP 服务器（`AssetServer`）把 assets 供出去，
+   页面、脚本、字体全走 http，问题消失，还顺带关掉了 `setAllowFileAccess*` 这些开关。
+
+3. **HTTP 服务器必须读完整个请求头再回包。**
+   只读请求行就 `close()`，套接字里还有未读数据 → 内核发 RST → 浏览器拿到**被截断的响应**：
+   页面空白、所有内联脚本都不执行（表现为 `setTemplates is not defined`）。教训：先读到 `\r\n\r\n`。
+
+4. **别漏 `INTERNET` 权限**（本应用全网络功能都靠它）。
+5. **d8 不能用 build-tools 34.0.0**（解析两层匿名类会 NPE），写死 36.0.0。
+6. **d8 的参数不能是几百个 `.class` 路径**：Windows 命令行 8191 字符上限会报 “The command line is too long”。
+   → 先用 `ZipFile.CreateFromDirectory` 打成 `classes.jar`，只传一个参数。
+7. **`javac` 必须显式 `-encoding UTF-8`**，否则 Windows 默认 GBK 会把中文字面量编成乱码。
+8. **`.ps1` 保持纯 ASCII**：PowerShell 5.1 在无 BOM 时按 ANSI 解码，中文注释会把脚本解析搞崩
+   （这次就因此让 `aapt2 link` 命令被截断）。
+9. **不要用 lambda**（d8 处理 invokedynamic 不稳），全用显式匿名内部类。
+10. **版本号只写一处**（`Version.java` 的 `VERSION_TAG`），`build.ps1` 自动推导 `versionName/versionCode`，
+    打包后还会 `aapt2 dump badging` 复核，防止「编出来的 APK 还是旧版本」。
+11. **别忘 `loadUrl`**：编辑器 WebView 建好了却忘了加载页面，界面就是一块空白（这次真踩了）。
+12. **`AlertDialog.setItems` 的坐标**：自动化点击时用 `uiautomator dump` 取真实坐标，别按截图目测换算。
+
+## 八、已验证 / 未验证
+**已在真机（OPPO Pad 3，Android 15，2800×2000）、模拟器（Pixel 5，Android 11）与真实 Anki 26.9.3 上跑通**：
+
+- 制卡页：输入 `velocity` → 连假 AI → 字段自动填好 → 预览里公式渲染成 `v⃗ = Δs⃗/Δt`
+- 保存（假服务）：`createDeck` → `modelNames` → `addNote`（字段与格式一致）→ `sync`
+- **保存（内置引擎，OPPO Pad 3 / arm64 与 MuMu x86_64 都实测）**：`ENGINE SELFTEST PASS`；
+  建收藏库、建牌组、建「专业术语卡」笔记类型、写笔记全部成功，
+  设备上的 `collection.anki2` 用 SQLite 核对无误
+- 浏览：牌组列表、`deck:*` 查询、笔记列表（标题/释义/标签）、卡片详情（正反面 + MathJax）都正常
+- 手机竖屏底栏 / 平板横屏左栏、转屏重排；崩溃捕获已装，实测无崩溃记录
+- 截图见 `preview/`（`tablet-*.png` / `phone-*.png`）
+
+**未验证 / 已知限制**：
+
+- **AI 已接好两套并实测通过**：智谱 GLM-4.5-Flash（免费，当前生效）与 DeepSeek（同一把 Key 实测可用，
+  余额约 ¥13.5、单张卡约 ¥0.0023）。两者 Key 分别保存，设置里点「服务商 ▾」即可切换，切换时 Key 自动带出
+- **AI 输出仍需人工过一眼**：免费档模型偶尔会把音标写偏（例如 probability 给成 /prɒˈbæbəl/），
+  DeepSeek 的准确度明显更高
+- **MathJax 字体**：已内置 23 个 `woff`，离线可用；若公式显示为方块，说明字体路径被改动了（见踩坑第 1 条）
+- 内置引擎的收藏库在应用私有目录（其它应用读不到）；AnkiWeb 的登录凭证 hkey 存在应用私有 SharedPreferences 里，
+  密码不落盘

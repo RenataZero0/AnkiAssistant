@@ -1,13 +1,46 @@
-# 构建中间产物
+# ============================================================
+# AnkiAssistant - Anki card-making assistant
+#   Windows desktop / Android / Windows installer
+#
+# Only the sources of these three apps live here. The single
+# source of truth for CHANGELOG.md is the repo root.
+#
+# NOTE: keep this file ASCII-only (aapt2 / PowerShell 5.1 both
+# choke on non-ASCII text read without an explicit encoding).
+# ============================================================
+
+# ---- build intermediates ----
 build/
+_selftest/
 *.idsig
 
-# 系统垃圾
+# ---- Windows artifacts ----
+# the loose exe is only the installer's input, not a release asset
+AnkiAssistant/AnkiAssistant.exe
+AnkiAssistantSetup/AnkiAssistant-Setup.exe
+AnkiAssistantSetup/build/
+*.pdb
+
+# ---- runtime data (holds API keys - never commit) ----
+settings.ini
+
+# ---- probes and scratch output ----
+_probe/
+_*.png
+AnkiAssistantSetup/preview/
+selftest.txt
+
+# ---- generated (source of truth is the repo-root CHANGELOG.md) ----
+AnkiAssistant/CHANGELOG.md
+_release_notes.md
+
+# ---- OS junk ----
 ~$*
 Thumbs.db
 desktop.ini
 .DS_Store
 
 tools/lib/
-# 内置 Anki 引擎的原生库（37 MB×2，用 tools\BUILD_ENGINE.md 的方法自行编译）
+# built-in Anki engine native libs (37 MB x2), build them yourself
+# with the recipe in tools\BUILD_ENGINE.md
 tools/lib/jni/
