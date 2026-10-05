@@ -31,6 +31,9 @@ namespace AnkiAssistant
 
         static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
 
+        /// <summary>诊断用：最近一次真正发出去的 JSON 报文。</summary>
+        public static string LastPayload = "";
+
         public class AnkiException : Exception
         {
             public AnkiException(string msg) : base(msg) { }
@@ -45,6 +48,7 @@ namespace AnkiAssistant
             body["params"] = param ?? new Dictionary<string, object>();
 
             string payload = Json.Serialize(body);
+            LastPayload = payload;   // 诊断用：最近一次真正发出去的报文
             byte[] data = Encoding.UTF8.GetBytes(payload);
 
             var req = (HttpWebRequest)WebRequest.Create(Endpoint);
@@ -128,6 +132,56 @@ namespace AnkiAssistant
         public static List<string> DeckNames()
         {
             return Strings(Invoke("deckNames"));
+        }
+
+        /// <summary>
+        /// 把 AnkiConnect 的英文报错翻译成能看懂的中文。没命中就原样返回。
+        /// </summary>
+        public static string Humanize(string err)
+        {
+            if (string.IsNullOrEmpty(err)) return err;
+            string e = err.Trim();
+            if (e.StartsWith("deck was not found", StringComparison.OrdinalIgnoreCase))
+                return err + "\n\n牌组不存在，而且自动创建也没成功。请先在 Anki 里建一个同名牌组，再用「选择牌组」挑它。";
+            if (e.IndexOf("duplicate", StringComparison.OrdinalIgnoreCase) >= 0)
+                return err + "\n\n这张卡和牌组里已有的某张重复了，Anki 拒绝了它。改一下内容或换张牌组再存。";
+            if (e.StartsWith("model was not found", StringComparison.OrdinalIgnoreCase))
+                return err + "\n\n笔记类型不存在，请到「设置 → 输出格式」里改一下当前格式的笔记类型名。";
+            if (e.IndexOf("collection is not available", StringComparison.OrdinalIgnoreCase) >= 0)
+                return err + "\n\nAnki 里的收藏库没打开（或正被同步/备份占用），把 Anki 窗口打开再试。";
+            return err;
+        }
+
+        /// <summary>
+        /// 牌组是否存在（大小写不敏感）。
+        /// 注意：AnkiConnect 的 addNote **不会**自动建牌组，牌组名不存在会直接
+        /// 报 "deck was not found"。所以写入前必须自己确认一遍。
+        /// </summary>
+        public static bool DeckExists(string deck)
+        {
+            if (string.IsNullOrEmpty(deck)) return false;
+            List<string> names = DeckNames();
+            foreach (string n in names)
+                if (string.Equals(n, deck, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
+        /// <summary>建牌组；已存在时 AnkiConnect 会直接返回既有 id，不会重复建。</summary>
+        public static bool CreateDeck(string deck)
+        {
+            if (string.IsNullOrEmpty(deck)) return false;
+            var p = new Dictionary<string, object>();
+            p["deck"] = deck;
+            Invoke("createDeck", p);
+            return true;
+        }
+
+        /// <summary>确保牌组存在（不存在就建），返回是否可用。</summary>
+        public static bool EnsureDeck(string deck)
+        {
+            if (string.IsNullOrEmpty(deck)) return false;
+            if (DeckExists(deck)) return true;
+            return CreateDeck(deck);
         }
 
         public static List<string> ModelNames()
@@ -301,7 +355,35 @@ namespace AnkiAssistant
 
             object r = Invoke("addNote", p);
             long id;
-            return long.TryParse(Convert.ToString(r), out id) ? id : 0;
+            long noteId = long.TryParse(Convert.ToString(r), out id) ? id : 0;
+            // 有些 AnkiConnect 版本 addNote 里写的是 collection.addNote(ankiNote) —— 没把牌组
+            // 传下去，Anki 就按「当前选中的牌组」落卡（本机实测三张卡全落进了「系统默认」，
+            // note 里的 deckName 被完全忽略）。补一次 changeDeck 才能保证卡片真的进对牌组。
+            if (noteId > 0) MoveCardsToDeck(noteId, deck);
+            return noteId;
+        }
+
+        /// <summary>
+        /// 把一条笔记的卡片挪到指定牌组（addNote 之后的补救，见上面的注释）。
+        /// </summary>
+        public static void MoveCardsToDeck(long noteId, string deck)
+        {
+            if (noteId <= 0 || string.IsNullOrEmpty(deck)) return;
+            var q = new Dictionary<string, object>();
+            q["query"] = "nid:" + noteId;
+            var cards = new List<long>();
+            var arr = Invoke("findCards", q) as IEnumerable;
+            if (arr != null)
+                foreach (object o in arr)
+                {
+                    long v;
+                    if (long.TryParse(Convert.ToString(o), out v)) cards.Add(v);
+                }
+            if (cards.Count == 0) return;
+            var p = new Dictionary<string, object>();
+            p["cards"] = cards;
+            p["deck"] = deck;
+            Invoke("changeDeck", p);
         }
 
         public static void DeleteNotes(List<long> ids)

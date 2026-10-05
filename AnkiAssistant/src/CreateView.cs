@@ -424,7 +424,7 @@ namespace AnkiAssistant
                         catch { parsed = CardFormat.FallbackFields(word, r2.Content); used = "兜底"; }
                     }
                 }
-                catch (Exception ex) { err = ex.Message; }
+                catch (Exception ex) { err = AnkiConn.Humanize(ex.Message); }
             });
             _busy = false;
             _bFill.Enabled = true;
@@ -511,6 +511,9 @@ namespace AnkiAssistant
                 try
                 {
                     SyncState.RequireConnected();
+                    // 牌组名可以是用户手输的新名字 —— AnkiConnect 不会自动建牌组，
+                    // 先补建一个，免得辛辛苦苦填好的卡因为一句英文报错白写。
+                    AnkiConn.EnsureDeck(deck);
                     if (!AnkiConn.NoteTypeExists(model))
                     {
                         AnkiConn.CreateModel(model, new List<string>(_cfg.FieldNames()), _cfg.CardFront(), _cfg.CardBack(), _cfg.Css);
@@ -521,7 +524,7 @@ namespace AnkiAssistant
                         try { AnkiConn.Sync(); } catch { }
                     }
                 }
-                catch (Exception ex) { err = ex.Message; }
+                catch (Exception ex) { err = AnkiConn.Humanize(ex.Message); }
             });
             _busy = false;
             _bSave.Enabled = true;
