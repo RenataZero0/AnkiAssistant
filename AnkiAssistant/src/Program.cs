@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -34,6 +35,18 @@ namespace AnkiAssistant
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+
+            // 兜底：任何没被接住的异常都写进 crash.log，并给一句人话。
+            // 不装这两条的话，用户只会看到一个"应用程序中发生了未经处理的异常"，什么都查不到。
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e)
+            {
+                CrashLog("界面线程", e.Exception);
+            };
+            AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e)
+            {
+                CrashLog("后台线程", e.ExceptionObject as Exception);
+            };
 
             // DPI 缩放：进程 DPI 感知之后，96 DPI 就是 1.0
             try
@@ -70,6 +83,53 @@ namespace AnkiAssistant
         {
             foreach (string s in a) if (string.Equals(s, flag, StringComparison.OrdinalIgnoreCase)) return true;
             return false;
+        }
+
+        /// <summary>
+        /// 把没接住的异常写进 %APPDATA%\AnkiAssistant\crash.log（含引擎状态与调用现场），
+        /// 再弹一句能看懂的提示。日志是追加的，看的时候直接看文件末尾即可。
+        /// </summary>
+        public static void CrashLog(string where, Exception e)
+        {
+            string path = "";
+            try
+            {
+                path = Path.Combine(Store.DataDir, "crash.log");
+                var sb = new StringBuilder();
+                sb.AppendLine("==================================================");
+                sb.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  [" + where + "]");
+                sb.AppendLine("版本 " + GitHub.VersionTag + "　皮肤 " + Store.ThemeId);
+                try { sb.AppendLine("引擎可用 " + Engine.Available + "　已打开收藏库 " + Engine.Opened); } catch { }
+                try { sb.AppendLine("收藏库 " + AnkiConn.AnkiDir()); } catch { }
+                try { if (!string.IsNullOrEmpty(AnkiConn.LastPayload)) sb.AppendLine("最后一次引擎调用 " + AnkiConn.LastPayload); } catch { }
+                if (e == null)
+                {
+                    sb.AppendLine("(异常对象是 null)");
+                }
+                else
+                {
+                    sb.AppendLine(e.GetType().FullName + ": " + e.Message);
+                    sb.AppendLine(e.StackTrace);
+                    for (Exception inner = e.InnerException; inner != null; inner = inner.InnerException)
+                        sb.AppendLine("  <- " + inner.GetType().FullName + ": " + inner.Message);
+                }
+                string text = sb.ToString();
+                // 超过 256 KB 就重开一份，免得无限长
+                try { if (File.Exists(path) && new FileInfo(path).Length > 256 * 1024) File.Delete(path); } catch { }
+                File.AppendAllText(path, text, new UTF8Encoding(false));
+                Console.WriteLine(text);
+            }
+            catch { }
+
+            try
+            {
+                MessageBox.Show(
+                    "刚才那一步出错了，程序还能继续用。\n\n" +
+                    (e == null ? "" : e.GetType().Name + "：" + e.Message) + "\n\n" +
+                    (path.Length > 0 ? "详细信息记在：" + path : "详细信息没能写下来。"),
+                    "Anki 助手", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch { }
         }
 
         public static string Value(string[] a, string flag)
