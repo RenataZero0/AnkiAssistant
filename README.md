@@ -202,11 +202,16 @@ Anki 助手（内置引擎） → 本机收藏库（filesDir/collection.anki2）
 | 硅基流动 SiliconFlow | `api.siliconflow.cn/v1/chat/completions` |
 | 自定义 | 任意 OpenAI 兼容的 `/chat/completions` |
 
-**Windows 版不内置任何 API Key** —— 打包进程序的密钥任何人都能提取盗用，几个预设都是一注册就有免费额度。
-**安卓版内置了一把「智谱 GLM-4.5-Flash」的免费档 Key**（`Secret.java` 里的 AES-GCM 密文，口令分段存放），
+**两端都内置了一把「智谱 GLM-4.5-Flash」的免费档 Key**（安卓 `Secret.java` 是 AES-GCM 密文，
+Windows `AnkiAssistant\src\Secret.cs` 是 AES-128-CBC + HMAC-SHA256 密文，口令都分段存放），
 所以新设备装完什么都不用填就能制卡；**设置里手填的 Key 优先于内置的那把**，随时可换、不用发版。
-付费余额的 Key 不打包。
+付费余额的 Key（如 DeepSeek）不打包。
 每个服务商各存一把 Key，切换服务商时自动带出上次填的那把。
+
+要换掉内置的那把（比如免费额度用完了）：
+- 安卓：`java tools/MakeSecret.java "<新 Key>" "<新口令>"`，把输出贴回 `Secret.java`
+- Windows：`AnkiAssistant\tools\MakeSecret.cs`（用法见文件头注释），把输出的 base64 贴回
+  `Secret.cs` 的 `Blob`，再跑一次 `--selftest` 确认「内置 Key 封装能往返」通过
 
 ---
 

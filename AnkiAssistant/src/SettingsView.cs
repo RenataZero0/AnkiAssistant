@@ -9,14 +9,14 @@ namespace AnkiAssistant
     /// 设置页：左栏栏目索引 + 右侧可滚动卡片区。
     ///
     /// 左栏固定 Ui.Px(168) 宽（安卓版窄屏时索引横过来，桌面窗口够宽，竖排更好点）；
-    /// 右侧七张卡片宽度跟着窗口走，卡片内部所有控件先按 1 份坐标系登记、等宽度定下来
+    /// 右侧八张卡片宽度跟着窗口走，卡片内部所有控件先按 1 份坐标系登记、等宽度定下来
     /// 再整体换算成像素（<see cref="CardBuilder.Layout"/>），所以不会出现横向滚动条。
     /// </summary>
     public class SettingsView : Panel
     {
         // 栏目顺序固定，索引、卡片、_cardY 三者一一对应
         static readonly string[] Sections = new string[] {
-            "AI 自动填充", "输出格式", "同步", "制卡习惯", "皮肤", "关于", "更新内容"
+            "AI 自动填充", "输出格式", "同步", "制卡习惯", "皮肤", "头像", "关于", "更新内容"
         };
 
         // 每张卡片在内容区里的 Y（像素），点击索引时用它精确滚过去
@@ -33,7 +33,8 @@ namespace AnkiAssistant
 
         // AI 卡片
         Pill _providerBtn;
-        TextBox _keyBox, _modelBox, _urlBox;
+        Input _keyBox, _modelBox, _urlBox;
+        Label _keyHint;
         CheckBox _thinking;
 
         // 输出格式卡片
@@ -41,7 +42,7 @@ namespace AnkiAssistant
         Pill _cfgDelete, _cfgReset;
 
         // 同步卡片
-        TextBox _endpointBox;
+        Input _endpointBox;
         AnkiLamp _lamp;
         CheckBox _autoSync, _autoCheck;
 
@@ -51,6 +52,11 @@ namespace AnkiAssistant
         // 皮肤
         SkinDot _skinDot;
         Label _skinName;
+
+        // 头像
+        Input _mailBox;
+        Label _avatarMsg;
+        Timer _mailWait;
 
         // 关于 / 更新
         Label _aboutVer, _updateVer, _updateMsg;
@@ -132,7 +138,7 @@ namespace AnkiAssistant
                 _host.Recalc();
                 _host.ScrollTo(keep);
                 _built = true;
-                _builtW = _host.ClientSize.Width;
+                _builtW = ContentW();
             }
             finally { _loading = false; }
             LoadValues();   // 卡片是刚建出来的空控件，把存下来的值灌回去
@@ -148,7 +154,8 @@ namespace AnkiAssistant
                 case 2: BuildSync(); break;
                 case 3: BuildHabit(); break;
                 case 4: BuildSkin(); break;
-                case 5: BuildAbout(); break;
+                case 5: BuildAvatar(); break;
+                case 6: BuildAbout(); break;
                 default: BuildUpdates(); break;
             }
         }
@@ -169,7 +176,9 @@ namespace AnkiAssistant
             {
                 if (_loading) return;
                 Store.Set("ai.key", _keyBox.Text);
+                RefreshKeyHint();
             };
+            _keyHint = c.Tip("");
 
             c.Label("模型");
             _modelBox = c.Input(false);
@@ -204,6 +213,24 @@ namespace AnkiAssistant
             string id = Store.Get("ai.provider", AiClient.DefaultPreset);
             _providerBtn.Text = "当前：" + AiClient.PresetLabel(id) + " ▾";
             _providerBtn.Invalidate();
+            RefreshKeyHint();
+        }
+
+        /// <summary>Key 框下面那行小字：说清"留空就是内置 Key、手填优先"。</summary>
+        void RefreshKeyHint()
+        {
+            if (_keyHint == null) return;
+            string id = Store.Get("ai.provider", AiClient.DefaultPreset);
+            bool typed = _keyBox != null && _keyBox.Text.Trim().Length > 0;
+            bool builtin = Secret.HasBuiltin(id);
+
+            string t;
+            if (typed) t = "正在用你填的 Key（它优先于内置 Key）。";
+            else if (builtin) t = "留空就用内置的 " + AiClient.PresetLabel(id) + " Key，不用自己填。";
+            else if (AiClient.NeedsKey(id)) t = "这个服务商需要自己填 Key。";
+            else t = "这个服务商免密钥，不用填。";
+            _keyHint.Text = t;
+            _keyHint.Invalidate();
         }
 
         void PickProvider()
@@ -219,7 +246,8 @@ namespace AnkiAssistant
             for (int i = 0; i < ids.Length; i++)
             {
                 names[i] = AiClient.PresetLabel(ids[i]);
-                notes[i] = AiClient.NeedsKey(ids[i]) ? "需要 API Key" : "免密钥";
+                if (Secret.HasBuiltin(ids[i])) notes[i] = "已内置免费 Key";
+                else notes[i] = AiClient.NeedsKey(ids[i]) ? "需要 API Key" : "免密钥";
                 if (ids[i] == cur) sel = i;
             }
 
@@ -259,7 +287,7 @@ namespace AnkiAssistant
 
             string preset = Store.Get("ai.provider", AiClient.DefaultPreset);
             string url = Store.Get("ai.url", AiClient.PresetBaseUrl(preset));
-            string key = Store.Get("ai.key", "");
+            string key = Secret.Resolve(preset, Store.Get("ai.key", ""));
             string model = Store.Get("ai.model", AiClient.PresetModel(preset));
             bool think = Store.GetBool("ai.thinking", false);
 
@@ -564,6 +592,17 @@ namespace AnkiAssistant
             _skinName.Invalidate();
         }
 
+        /// <summary>进头像卡片时先说清楚现在这张是哪来的。</summary>
+        void RefreshAvatarMsg()
+        {
+            if (_avatarMsg == null) return;
+            string src = Store.Get("avatar.source", "");
+            if (src == "custom") AvatarMsg("现在用的是自己选的那张（在 Anki 媒体库里，会跟着同步）。", Ui.SUB);
+            else if (src == "gravatar") AvatarMsg("现在用的是 Gravatar 上那张。", Ui.SUB);
+            else if (AvatarStore.Email.Length == 0) AvatarMsg("还没填邮箱 —— 填了才能用 Gravatar。", Ui.AMBER);
+            else AvatarMsg("Gravatar 上没有的话，角标就显示邮箱首字母。", Ui.SUB);
+        }
+
         void PickSkin()
         {
             List<Theme> all = Theme.All();
@@ -588,11 +627,141 @@ namespace AnkiAssistant
             ThemeSwap.Apply(all[pick].Id);   // 内部会写 Store.ThemeId 并重建 MainForm
         }
 
-        // ---------------------------------------------------------------- 6. 关于
+        // ---------------------------------------------------------------- 6. 头像
+
+        void BuildAvatar()
+        {
+            var c = new CardBuilder(_host, Sections[5]);
+            c.Tip("默认按邮箱从 Gravatar 取头像；也可以自己选一张，" +
+                  "选完那张会写进 Anki 的媒体库，跟着 AnkiWeb 同步到手机 / 别的电脑。");
+
+            c.Label("Gravatar / AnkiWeb 邮箱");
+            _mailBox = c.Input(false);
+            _mailBox.TextChanged += delegate
+            {
+                if (_loading) return;
+                Store.Set("anki.profile", _mailBox.Text.Trim());
+                Store.Set("avatar.email", "");   // 邮箱换了，旧缓存（Gravatar 那张）作废
+                WaitMail();
+            };
+            c.Hint("只用来算头像（Gravatar 的公开算法），本程序不会把邮箱发到别处，" +
+                   "也不需要 AnkiWeb 密码。");
+
+            c.Gap(12);
+            c.Row(32, 2);
+            c.InRow(c.MakeButton("选择图片…", true, delegate { PickAvatarImage(); }), 8);
+            c.InRow(c.MakeButton("换回 Gravatar", false, delegate { UseGravatar(); }), 0);
+
+            c.Gap(6);
+            _avatarMsg = c.Tip("");
+
+            c.Done();
+        }
+
+        /// <summary>输入邮箱时别每敲一个字就去打一次 Gravatar，停手一会儿再解析。</summary>
+        void WaitMail()
+        {
+            if (_mailWait == null)
+            {
+                _mailWait = new Timer();
+                _mailWait.Interval = 800;
+                _mailWait.Tick += delegate
+                {
+                    _mailWait.Stop();
+                    RefreshAvatar();
+                };
+            }
+            _mailWait.Stop();
+            _mailWait.Start();
+        }
+
+        /// <summary>让顶栏角标按新的邮箱 / 缓存重解析一次。</summary>
+        void RefreshAvatar()
+        {
+            if (MainForm.Instance != null) MainForm.Instance.RefreshAvatar();
+        }
+
+        /// <summary>头像卡片里那行反馈：成功绿、只存在本机琥珀、失败红。</summary>
+        void AvatarMsg(string text, Color color)
+        {
+            if (_avatarMsg == null) return;
+            _avatarMsg.Text = text;
+            _avatarMsg.ForeColor = color;
+            _avatarMsg.Invalidate();
+        }
+
+        void PickAvatarImage()
+        {
+            string path;
+            using (var d = new OpenFileDialog())
+            {
+                d.Title = "选择头像图片";
+                d.Filter = "图片 (*.png;*.jpg;*.jpeg;*.bmp;*.gif)|*.png;*.jpg;*.jpeg;*.bmp;*.gif" +
+                           "|所有文件 (*.*)|*.*";
+                if (d.ShowDialog(FindForm()) != DialogResult.OK) return;
+                path = d.FileName;
+            }
+
+            try
+            {
+                // 拷一份再存：File 系列会让文件一直被占着，用户在原程序里可能还要用它
+                using (Image raw = Image.FromFile(path))
+                using (var copy = new Bitmap(raw))
+                    AvatarBadge.SaveImage(copy);
+            }
+            catch (Exception ex)
+            {
+                AvatarMsg("这张图读不进来：" + ex.Message, Ui.RED);
+                return;
+            }
+
+            RefreshAvatar();
+            AvatarMsg("头像已换好，正在往 Anki 媒体库里写…", Ui.SUB);
+
+            // 上传放后台：Anki 没开也不能卡住设置页，失败只在那行小字里说一声
+            string why = null;
+            Dlg.LastError = null;   // 静态字段，上一次的错不能算到这一次头上
+            Dlg.Wait(FindForm(), "头像", "正在把头像写进 Anki 媒体库…", delegate
+            {
+                using (Image img = AvatarBadge.LoadImage())
+                {
+                    if (img == null) why = "本机那张读不回来了。";
+                    else AvatarStore.Push(img, out why);
+                }
+            });
+            if (why == null && Dlg.LastError != null) why = Dlg.LastError.Message;
+
+            if (why == null) AvatarMsg("已存进 Anki 媒体库，会跟着 AnkiWeb 同步。", Ui.GREEN);
+            else AvatarMsg("头像只存在本机：" + why, Ui.AMBER);
+        }
+
+        void UseGravatar()
+        {
+            bool ok = Dlg.Confirm(FindForm(), "换回默认头像",
+                "本机这张会被删掉，Anki 媒体库里那张也一起删；" +
+                "别的设备同步完也会回到 Gravatar（按上面的邮箱取）。",
+                "换回默认", "取消", false);
+            if (!ok) return;
+
+            AvatarBadge.ClearImage();
+            Store.Set("avatar.source", "");
+            Store.Set("avatar.email", "");
+
+            Dlg.Wait(FindForm(), "头像", "正在清媒体库里的旧头像…", delegate
+            {
+                AvatarStore.DeleteRemote();   // 删不掉也不影响本机换回默认
+            });
+
+            RefreshAvatar();
+            MainForm.Instance.SetStatus("已换回 Gravatar 默认头像");
+            AvatarMsg("已换回默认：有 Gravatar 就显示它，没有就显示字母。", Ui.GREEN);
+        }
+
+        // ---------------------------------------------------------------- 7. 关于
 
         void BuildAbout()
         {
-            var c = new CardBuilder(_host, Sections[5]);
+            var c = new CardBuilder(_host, Sections[6]);
             _aboutVer = c.Text("Anki 助手 " + GitHub.Clean(GitHub.VersionTag), 11.5f, true);
 
             c.Tip("卡片通过 AnkiConnect 插件写进本机 Anki 桌面端；" +
@@ -615,11 +784,11 @@ namespace AnkiAssistant
             c.Done();
         }
 
-        // ---------------------------------------------------------------- 7. 更新内容
+        // ---------------------------------------------------------------- 8. 更新内容
 
         void BuildUpdates()
         {
-            var c = new CardBuilder(_host, Sections[6]);
+            var c = new CardBuilder(_host, Sections[7]);
             _updateVer = c.Text("当前版本 " + GitHub.VersionTag, 9f, false);
 
             c.Gap(10);
@@ -789,7 +958,7 @@ namespace AnkiAssistant
         /// <summary>切到这一页时刷新：版本号、格式信息、连接状态、皮肤、各输入框。</summary>
         public void Activate()
         {
-            // 第一次显示时右侧七张卡片一张都还没建（Rebuild 过去只在用户改格式时才被调用），
+            // 第一次显示时右侧八张卡片一张都还没建（Rebuild 过去只在用户改格式时才被调用），
             // 不先建出来的话 _keyBox / _thinking / _endpointBox… 全是 null，
             // 灌值那段会被 NullReferenceException 打断、又被 catch 吞掉，内容区就一直是空白。
             if (!_built) Rebuild();
@@ -814,13 +983,15 @@ namespace AnkiAssistant
                 _autoSync.Checked = Store.GetBool("anki.autosync", false);
                 _autoCheck.Checked = Store.GetBool("anki.autocheck", true);
                 _clear.Checked = Store.GetBool("create.clear", true);
-                _autoPreview.Checked = Store.GetBool("create.autopreview", false);
+                if (_autoPreview != null) _autoPreview.Checked = Store.GetBool("create.autopreview", false);
+                if (_mailBox != null) _mailBox.Text = Store.Get("anki.profile", "");
                 _loading = false;
 
                 RefreshProviderBtn();
                 RefreshFormatCard();
                 RefreshSyncCard();
                 RefreshSkin();
+                RefreshAvatarMsg();
                 Spy();
             }
             catch { }
@@ -831,7 +1002,20 @@ namespace AnkiAssistant
         protected override void OnSizeChanged(EventArgs e)
         {
             base.OnSizeChanged(e);
-            if (_built && _host != null && _host.ClientSize.Width != _builtW) Rebuild();
+            if (!_built || _host == null || _loading) return;
+            // 只比「内容宽度」：大屏再多出来的是留白（MaxContentWidth 限宽 + 居中），
+            // 而且拖动窗口时每一像素都重建一次整页会让界面卡死。
+            if (ContentW() != _builtW) Rebuild();
+        }
+
+        int ContentW()
+        {
+            ScrollHost h = _host;                     // _host 是属性，先落到局部变量再取字段（否则 CS1690）
+            if (h == null) return 0;
+            Padding pad = h.BodyPadding;
+            int w = h.ClientSize.Width - pad.Left - pad.Right;
+            if (h.MaxContentWidth > 0 && w > h.MaxContentWidth) w = h.MaxContentWidth;
+            return w;
         }
 
         protected override void Dispose(bool disposing)
@@ -841,6 +1025,7 @@ namespace AnkiAssistant
             {
                 if (_spy != null) { _spy.Stop(); _spy.Dispose(); _spy = null; }
                 if (_syncPoll != null) { _syncPoll.Stop(); _syncPoll.Dispose(); _syncPoll = null; }
+                if (_mailWait != null) { _mailWait.Stop(); _mailWait.Dispose(); _mailWait = null; }
             }
             base.Dispose(disposing);
         }
@@ -851,7 +1036,12 @@ namespace AnkiAssistant
     /// <summary>左栏栏目名：选中时主色淡底 + 1px 主色描边（对齐安卓版 styleIndex）。</summary>
     public class IndexItem : Control
     {
-        public bool Selected;
+        bool _sel;
+        public bool Selected
+        {
+            get { return _sel; }
+            set { if (_sel != value) { _sel = value; Invalidate(); } }
+        }
         bool _hover;
 
         public IndexItem(string text)
@@ -1276,16 +1466,13 @@ namespace AnkiAssistant
 
         public void Gap(int dp) { _y += Ui.Px(dp); }
 
-        public TextBox Input(bool secret)
+        public Input Input(bool secret)
         {
-            var t = new TextBox();
-            t.BorderStyle = BorderStyle.FixedSingle;
+            var t = new Input();
             t.Font = Ui.F(9.5f);
-            t.ForeColor = Ui.INK;
-            t.BackColor = Ui.PANEL;
-            if (secret) t.UseSystemPasswordChar = true;
-            Reg(t, 0, 1.0, Ui.Px(28), 0);
-            _y += Ui.Px(28) + Ui.Px(2);
+            t.Secret = secret;
+            Reg(t, 0, 1.0, Ui.Px(34), 0);
+            _y += Ui.Px(34) + Ui.Px(6);
             return t;
         }
 

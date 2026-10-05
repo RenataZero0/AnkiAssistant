@@ -140,6 +140,29 @@ namespace AnkiAssistant
             return out_;
         }
 
+        // 字体全部缓存：这些是在 OnPaint 里被反复要的，new 出来不释放会漏 GDI 句柄
+        static readonly Dictionary<string, Font> Fcache = new Dictionary<string, Font>();
+
+        static Font SpanFont(Font baseFont, bool bold, bool code)
+        {
+            if (!bold && !code) return baseFont;
+            string key = (code ? "C" : "T") + "|" + (int)Math.Round(baseFont.Size * 100) + "|" + (bold ? 1 : 0);
+            Font hit;
+            if (Fcache.TryGetValue(key, out hit)) return hit;
+            Font made = code
+                ? new Font("Consolas", baseFont.Size - 0.5f, bold ? FontStyle.Bold : FontStyle.Regular)
+                : new Font(baseFont, FontStyle.Bold);
+            Fcache[key] = made;
+            return made;
+        }
+
+        static Font _codeFont;
+        static Font CodeFont()
+        {
+            if (_codeFont == null) _codeFont = new Font("Consolas", 9f * Ui.FontBoost);
+            return _codeFont;
+        }
+
         /// <summary>画一行可换行的富文本，返回占用高度。</summary>
         int DrawRich(Graphics g, string text, Font baseFont, Color color, int x, int y, int width, int lineH)
         {
@@ -147,8 +170,7 @@ namespace AnkiAssistant
             int cx = x, cy = y;
             foreach (Span sp in spans)
             {
-                Font f = sp.Code ? new Font("Consolas", baseFont.Size - 0.5f) : baseFont;
-                if (sp.Bold) f = new Font(f, FontStyle.Bold);
+                Font f = SpanFont(baseFont, sp.Bold, sp.Code);
                 string[] words = sp.Code ? new[] { sp.Text } : sp.Text.Split(' ');
                 for (int w = 0; w < words.Length; w++)
                 {
@@ -172,7 +194,7 @@ namespace AnkiAssistant
             int lines = 1, used = 0;
             foreach (Span sp in Spans(text))
             {
-                Font ff = sp.Bold ? new Font(f, FontStyle.Bold) : f;
+                Font ff = SpanFont(f, sp.Bold, false);
                 SizeF sz = g.MeasureString(sp.Text, ff);
                 used += (int)sz.Width;
                 while (used > width) { lines++; used -= width; }
@@ -195,7 +217,7 @@ namespace AnkiAssistant
             var fH2 = Ui.F(11.5f, true);
             var fH3 = Ui.F(10f, true);
             var fP = Ui.F(9.5f);
-            var fCode = new Font("Consolas", 9f);
+            var fCode = CodeFont();
             int lineH = Ui.Px(20);
 
             // 表格列宽：按每行 | 的数量取最大值
@@ -304,10 +326,17 @@ namespace AnkiAssistant
 
     static class FontExt
     {
-        /// <summary>把字体缩到下一个整数号（表格里略微收紧，省得拥挤）。</summary>
+        static readonly Dictionary<string, Font> Cache = new Dictionary<string, Font>();
+
+        /// <summary>把字体缩到下一个整数号（表格里略微收紧，省得拥挤）。结果缓存，别在 OnPaint 里漏句柄。</summary>
         public static Font Take(this Font f)
         {
-            return new Font(f.FontFamily, Math.Max(7f, f.Size - 0.5f), f.Style);
+            string key = f.FontFamily.Name + "|" + (int)Math.Round(f.Size * 100) + "|" + (int)f.Style;
+            Font hit;
+            if (Cache.TryGetValue(key, out hit)) return hit;
+            Font made = new Font(f.FontFamily, Math.Max(7f, f.Size - 0.5f), f.Style);
+            Cache[key] = made;
+            return made;
         }
     }
 }

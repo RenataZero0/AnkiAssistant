@@ -49,6 +49,7 @@ namespace AnkiAssistant
             Shown += delegate
             {
                 try { SyncState.Refresh(); } catch { }
+                RefreshAvatar();   // 本地缓存 → Anki 媒体库 → Gravatar，后台跑
             };
             FormClosing += delegate { Store.Set("win.w", Width.ToString()); Store.Set("win.h", Height.ToString()); };
         }
@@ -184,6 +185,16 @@ namespace AnkiAssistant
             _avatar.Invalidate();
             _avatar.Refresh2();
             SetStatus(SyncState.StatusText(), SyncState.Kind == SyncKind.Error);
+        }
+
+        /// <summary>重新解析头像（本地缓存 → Anki 媒体库 → Gravatar）并重画角标。</summary>
+        public void RefreshAvatar()
+        {
+            if (IsDisposed) return;
+            AvatarStore.ResolveAsync(_avatar, (MethodInvoker)delegate
+            {
+                if (_avatar != null) _avatar.Refresh2();
+            });
         }
 
         void ShowConnDialog()

@@ -18,14 +18,14 @@ namespace AnkiAssistant
     {
         // 数据
         CardConfig _cfg;
-        List<TextBox> _boxes = new List<TextBox>();     // 与 _cfg.Fields 一一对应（0 号是单词框）
+        List<Input> _boxes = new List<Input>();     // 与 _cfg.Fields 一一对应（0 号是单词框）
         Dictionary<string, object> _lastAi;            // 最近一次 AI 解析结果（重填时用）
 
         // 控件
         Card _topCard, _bottomCard;
         Panel _center, _editPane;
         MarkdownView _preview;
-        TextBox _word, _deck, _tags;
+        Input _word, _deck, _tags;
         Label _labWord, _hintWord;      // 顶部「单词」块的字段名 / 提示（跟着当前格式走）
         Pill _tabEdit, _tabPreview, _bFill, _bClear, _bSave, _bDraft, _bDeck;
         Label _aiLine;
@@ -77,31 +77,20 @@ namespace AnkiAssistant
             };
             _topCard.Controls.Add(_hintWord);
 
-            _word = new TextBox
-            {
-                Font = Ui.F(12f, true),
-                Multiline = true,
-                WordWrap = false,
-                BorderStyle = BorderStyle.None,     // 不再画系统边框，圆角浅底由卡片自己画
-                BackColor = Ui.PANEL,
-                ForeColor = Ui.INK,
-                Location = new Point(Ui.Px(22), Ui.Px(36)),
-                Size = new Size(Ui.Px(560), Ui.Px(26))
-            };
+            _word = new Input(true, false);
+            _word.Font = Ui.F(12f, true);
+            _word.WordWrap = false;
+            _word.Scrollbars = ScrollBars.None;   // 单词框不需要滚动条（多行 + 不折行会画出个挤扁的箭头）
+            _word.PadX = 9;
+            _word.PadY = 5;
+            _word.Location = new Point(Ui.Px(18), Ui.Px(30));
+            _word.Size = new Size(Ui.Px(560), Ui.Px(34));
             _word.KeyDown += delegate(object s, KeyEventArgs e)
             {
                 if (e.KeyCode == Keys.Enter && !e.Shift) { e.SuppressKeyPress = true; FillWithAi(); }
                 if (e.KeyCode == Keys.S && e.Control) Save();
             };
             _topCard.Controls.Add(_word);
-            // 输入区底色画在卡片上（TextBox 自己画不了圆角），颜色跟着皮肤走
-            _topCard.Paint += delegate(object s, PaintEventArgs e)
-            {
-                Ui.FillRound(e.Graphics,
-                    new Rectangle(_word.Left - Ui.Px(8), _word.Top - Ui.Px(5),
-                                  _word.Width + Ui.Px(16), _word.Height + Ui.Px(10)),
-                    Ui.Px(8), Ui.PANEL);
-            };
 
             _bClear = new Pill { Text = "清空", Font = Ui.F(9.5f) };
             _bClear.Size = new Size(Pill.Measure("清空", _bClear.Font) + Ui.Px(18), Ui.Px(34));
@@ -137,11 +126,11 @@ namespace AnkiAssistant
         {
             int w = _topCard.Width;
             int right = w - Ui.Px(20);
-            int row = Ui.Px(32);                        // 输入框和「清空 / AI 填充」同排
+            int row = Ui.Px(30);                        // 输入框和「清空 / AI 填充」同排
             _bFill.Location = new Point(right - _bFill.Width, row);
             _bClear.Location = new Point(_bFill.Left - Ui.Px(10) - _bClear.Width, row);
-            int wordW = Math.Max(Ui.Px(180), _bClear.Left - Ui.Px(12) - Ui.Px(22));   // 22 = 输入框左内边距
-            _word.Size = new Size(wordW, Ui.Px(26));
+            int wordW = Math.Max(Ui.Px(180), _bClear.Left - Ui.Px(10) - Ui.Px(18));   // 18 = 输入框左边距
+            _word.Size = new Size(wordW, Ui.Px(34));
             _hintWord.Location = new Point(_labWord.Right + Ui.Px(8), Ui.Px(12));   // 提示紧跟字段名
         }
 
@@ -200,7 +189,11 @@ namespace AnkiAssistant
             _labDeck = labDeck;
             _labTags = labTags;
 
-            _deck = new TextBox { Font = Ui.F(10f), BorderStyle = BorderStyle.FixedSingle, BackColor = Ui.PANEL, ForeColor = Ui.INK, Location = new Point(Ui.Px(20), Ui.Px(36)), Size = new Size(Ui.Px(300), Ui.Px(28)) };
+            _deck = new Input();
+            _deck.Font = Ui.F(10f);
+            _deck.PadX = 10;
+            _deck.Location = new Point(Ui.Px(20), Ui.Px(36));
+            _deck.Size = new Size(Ui.Px(300), Ui.Px(32));
             _bottomCard.Controls.Add(_deck);
 
             _bDeck = new Pill { Text = "选择牌组", Font = Ui.F(9.5f) };
@@ -208,7 +201,11 @@ namespace AnkiAssistant
             _bDeck.Click += delegate { ChooseDeck(); };
             _bottomCard.Controls.Add(_bDeck);
 
-            _tags = new TextBox { Font = Ui.F(10f), BorderStyle = BorderStyle.FixedSingle, BackColor = Ui.PANEL, ForeColor = Ui.INK, Location = new Point(Ui.Px(20), Ui.Px(36)), Size = new Size(Ui.Px(300), Ui.Px(28)) };
+            _tags = new Input();
+            _tags.Font = Ui.F(10f);
+            _tags.PadX = 10;
+            _tags.Location = new Point(Ui.Px(20), Ui.Px(36));
+            _tags.Size = new Size(Ui.Px(300), Ui.Px(32));
             _bottomCard.Controls.Add(_tags);
 
             _bSave = new Pill { Text = "保存到 Anki", Primary = true, Font = Ui.F(10f, true) };
@@ -232,12 +229,12 @@ namespace AnkiAssistant
             int half = (w - Ui.Px(40) - Ui.Px(14)) / 2;
             int tagsX = Ui.Px(20) + half + Ui.Px(14);
             _labTags.Location = new Point(tagsX, Ui.Px(12));
-            _deck.Size = new Size(Math.Max(Ui.Px(140), half - _bDeck.Width - Ui.Px(8)), Ui.Px(28));
-            _bDeck.Location = new Point(Ui.Px(20) + half - _bDeck.Width, Ui.Px(36));
+            _deck.Size = new Size(Math.Max(Ui.Px(140), half - _bDeck.Width - Ui.Px(8)), Ui.Px(32));
+            _bDeck.Location = new Point(Ui.Px(20) + half - _bDeck.Width, Ui.Px(38));
             _tags.Location = new Point(tagsX, Ui.Px(36));
-            _tags.Size = new Size(half, Ui.Px(28));
+            _tags.Size = new Size(half, Ui.Px(32));
 
-            int y = Ui.Px(74);
+            int y = Ui.Px(76);
             _bSave.Location = new Point(Ui.Px(20), y);
             _bSave.Size = new Size(Math.Max(Ui.Px(120), (w - Ui.Px(40)) / 2 - Ui.Px(6)), Ui.Px(36));
             _bDraft.Location = new Point(_bSave.Right + Ui.Px(12), y);
@@ -262,7 +259,7 @@ namespace AnkiAssistant
 
         void RefreshAiLine()
         {
-            string id = Store.Get("ai.preset", AiClient.DefaultPreset);
+            string id = AiClient.ActivePreset();
             string model = Store.Get("ai.model", AiClient.PresetModel(id));
             _aiLine.Text = "AI：" + AiClient.PresetLabel(id) +
                 (string.IsNullOrEmpty(model) ? "" : "（" + model + "）") + "　·　点此更换";
@@ -294,17 +291,13 @@ namespace AnkiAssistant
                     if (!string.IsNullOrEmpty(f.Hint))
                         Ui.Text(e.Graphics, f.Hint, Ui.F(8.5f), Ui.TEXT_DIM, Ui.Px(96), Ui.Px(9));
                 };
-                var tb = new TextBox
-                {
-                    Multiline = true,
-                    Font = Ui.F(10f),
-                    BorderStyle = BorderStyle.None,
-                    BackColor = Ui.CARD,
-                    ForeColor = Ui.INK,
-                    ScrollBars = ScrollBars.Vertical,
-                    Location = new Point(Ui.Px(14), Ui.Px(30)),
-                    Size = new Size(Ui.Px(400), Ui.Px(46))
-                };
+                var tb = new Input(true, false);
+                tb.Font = Ui.F(10f);
+                tb.BoxFill = Ui.PANEL;
+                tb.PadX = 10;
+                tb.PadY = 5;
+                tb.Location = new Point(Ui.Px(14), Ui.Px(30));
+                tb.Size = new Size(Ui.Px(400), Ui.Px(46));
                 c.Controls.Add(tb);
                 c.Resize += delegate { tb.Size = new Size(c.Width - Ui.Px(28), c.Height - Ui.Px(38)); };
                 _editPane.Controls.Add(c);
@@ -394,9 +387,9 @@ namespace AnkiAssistant
                 return;
             }
 
-            string id = Store.Get("ai.preset", AiClient.DefaultPreset);
+            string id = AiClient.ActivePreset();
             string url = Store.Get("ai.url", AiClient.PresetBaseUrl(id));
-            string key = Store.Get("ai.key", "");
+            string key = Secret.Resolve(id, Store.Get("ai.key", ""));
             string model = Store.Get("ai.model", AiClient.PresetModel(id));
             bool thinking = Store.GetBool("ai.thinking", false);
             string subject = _cfg.SubjectOr(CardConfig.AppDefaultSubject);

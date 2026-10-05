@@ -430,5 +430,15 @@ namespace AnkiAssistant
             }
             catch { return null; }
         }
+
+        /// <summary>删掉媒体库里的一张图（换回 Gravatar 头像时用）。</summary>
+        public static bool DeleteMediaFile(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName)) return false;
+            var p = new Dictionary<string, object>();
+            p["filename"] = fileName;
+            Invoke("deleteMediaFile", p);
+            return true;
+        }
     }
 }

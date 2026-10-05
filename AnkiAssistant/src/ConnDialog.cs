@@ -24,7 +24,7 @@ namespace AnkiAssistant
         const string DefEndpoint = "127.0.0.1:8765";
 
         Panel _status;                  // 状态区：大字 + 圆点 + 一行灰字
-        TextBox _box;                   // 地址输入框
+        Input _box;                   // 地址输入框
         Pill _bRecheck, _bOpen, _bSync; // 三个动作按钮（「关闭」由父类 Button 造）
 
         SyncKind _kind = SyncKind.Unknown;
@@ -116,16 +116,11 @@ namespace AnkiAssistant
             Body.Controls.Add(lab);
             yDp += 22;
 
-            _box = new TextBox
-            {
-                Text = ToUi(Store.Get("anki.endpoint", DefEndpoint)),
-                Font = Ui.F(10f),
-                BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Ui.PANEL,
-                ForeColor = Ui.INK,
-                Location = new Point(Ui.Px(Pad), Ui.Px(yDp)),
-                Size = new Size(BodyWidth, Ui.Px(28))
-            };
+            _box = new Input();
+            _box.Text = ToUi(Store.Get("anki.endpoint", DefEndpoint));
+            _box.Font = Ui.F(10f);
+            _box.Location = new Point(Ui.Px(Pad), Ui.Px(yDp));
+            _box.Size = new Size(BodyWidth, Ui.Px(32));
             _box.TextChanged += delegate
             {
                 // 边打边存。空值不写：手一抖清空了，别把还能用的地址冲掉。
@@ -136,6 +131,7 @@ namespace AnkiAssistant
             {
                 if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Recheck(); }
             };
+            Body.Controls.Add(_box);
             _box.Leave += delegate
             {
                 if (_box.Text.Trim().Length == 0)
@@ -144,8 +140,7 @@ namespace AnkiAssistant
                     Store.Set("anki.endpoint", ToStore(DefEndpoint));
                 }
             };
-            Body.Controls.Add(_box);
-            yDp += 28 + 8;
+            yDp += 32 + 8;
 
             var hint = new Label
             {

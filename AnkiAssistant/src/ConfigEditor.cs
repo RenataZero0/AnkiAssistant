@@ -25,8 +25,8 @@ namespace AnkiAssistant
         readonly List<Panel> _rowPanels = new List<Panel>();
 
         // 基础信息
-        TextBox _name, _noteType, _deck, _tags, _subject;
-        TextBox _prompt, _sysPrompt;
+        Input _name, _noteType, _deck, _tags, _subject;
+        Input _prompt, _sysPrompt;
         Label _hintDefaults, _hintPrompt;
 
         public bool Result;
@@ -81,7 +81,7 @@ namespace AnkiAssistant
             _sysPrompt = AddMulti(_basic, "系统提示词", ref y, 96, false);
         }
 
-        TextBox AddInput(Control host, string label, ref int y, int widthDp, bool secret)
+        Input AddInput(Control host, string label, ref int y, int widthDp, bool secret)
         {
             var l = new Label();
             l.Text = label;
@@ -92,19 +92,16 @@ namespace AnkiAssistant
             host.Controls.Add(l);
             y += Ui.Px(20) + Ui.Px(2);
 
-            var t = new TextBox();
-            t.BorderStyle = BorderStyle.FixedSingle;
+            var t = new Input();
             t.Font = Ui.F(9.5f);
-            t.ForeColor = Ui.INK;
-            t.BackColor = Ui.PANEL;
-            if (secret) t.UseSystemPasswordChar = true;
-            t.SetBounds(Ui.Px(2), y, Ui.Px(widthDp), Ui.Px(28));
+            t.Secret = secret;
+            t.SetBounds(Ui.Px(2), y, Ui.Px(widthDp), Ui.Px(34));
             host.Controls.Add(t);
-            y += Ui.Px(28) + Ui.Px(4);
+            y += Ui.Px(34) + Ui.Px(6);
             return t;
         }
 
-        TextBox AddMulti(Control host, string label, ref int y, int heightDp, bool withPreview)
+        Input AddMulti(Control host, string label, ref int y, int heightDp, bool withPreview)
         {
             var l = new Label();
             l.Text = label;
@@ -126,16 +123,11 @@ namespace AnkiAssistant
             }
             y += Ui.Px(20) + Ui.Px(2);
 
-            var t = new TextBox();
-            t.Multiline = true;
-            t.ScrollBars = ScrollBars.Vertical;
-            t.BorderStyle = BorderStyle.FixedSingle;
+            var t = new Input(true, false);
             t.Font = Ui.F(9.5f);
-            t.ForeColor = Ui.INK;
-            t.BackColor = Ui.PANEL;
             t.SetBounds(Ui.Px(2), y, Ui.Px(660), Ui.Px(heightDp));
             host.Controls.Add(t);
-            y += Ui.Px(heightDp) + Ui.Px(4);
+            y += Ui.Px(heightDp) + Ui.Px(6);
             return t;
         }
 
@@ -300,7 +292,7 @@ namespace AnkiAssistant
             return _rowPanels.IndexOf(row);
         }
 
-        void CommitRow(int i, TextBox n, TextBox k, TextBox h, bool? latex)
+        void CommitRow(int i, Input n, Input k, Input h, bool? latex)
         {
             if (i < 0 || i >= _cfg.Fields.Count) return;
             Field f = _cfg.Fields[i];
@@ -315,13 +307,12 @@ namespace AnkiAssistant
             f.Hint = h.Text;
         }
 
-        TextBox RowInput(Control row, int xDp, int wDp, string value)
+        Input RowInput(Control row, int xDp, int wDp, string value)
         {
-            var t = new TextBox();
-            t.BorderStyle = BorderStyle.FixedSingle;
+            var t = new Input();
             t.Font = Ui.F(9.5f);
-            t.ForeColor = Ui.INK;
-            t.BackColor = Ui.PANEL;
+            t.PadX = 6;
+            t.PadY = 4;
             t.Text = value;
             t.SetBounds(Ui.Px(xDp), Ui.Px(3), Ui.Px(wDp - 8), Ui.Px(26));
             row.Controls.Add(t);
@@ -382,7 +373,7 @@ namespace AnkiAssistant
 
             foreach (Control c in _basic.Controls)
             {
-                if (c is TextBox && ((TextBox)c).Multiline)
+                if (c is Input && ((Input)c).Multiline)
                     c.Width = Math.Max(Ui.Px(240), innerW - Ui.Px(4));
                 else if (c is Label && ((Label)c).Font.Size <= 8.6f)
                     c.Width = Math.Max(Ui.Px(200), innerW - Ui.Px(4));
@@ -417,8 +408,8 @@ namespace AnkiAssistant
             for (int i = 0; i < _rowPanels.Count && i < _cfg.Fields.Count; i++)
             {
                 Panel row = _rowPanels[i];
-                var boxes = new List<TextBox>();
-                foreach (Control c in row.Controls) if (c is TextBox) boxes.Add((TextBox)c);
+                var boxes = new List<Input>();
+                foreach (Control c in row.Controls) if (c is Input) boxes.Add((Input)c);
                 if (boxes.Count < 3) continue;
                 CheckBox lx = null;
                 foreach (Control c in row.Controls) if (c is CheckBox) { lx = (CheckBox)c; break; }

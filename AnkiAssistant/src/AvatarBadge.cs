@@ -9,9 +9,10 @@ namespace AnkiAssistant
     /// <summary>
     /// 顶栏右上角的头像角标：圆角方形（和 Android 版 v1.15 之后一致）。
     ///
-    /// 图片来源：%APPDATA%\AnkiAssistant\data\avatar.png（在设置里选的），
-    /// 没有就画一个字母。右下角的小圆点是 Anki 连接状态：
-    /// 绿=连上了，灰=没检查，红=连不上。
+    /// 图片来源：%APPDATA%\AnkiAssistant\data\avatar.png，由 <see cref="AvatarStore"/>
+    /// 按「本机缓存 → Anki 收藏库媒体 → Gravatar → 字母」解析出来（自己选的那张会
+    /// 写进 Anki 媒体库，跟着 AnkiWeb 同步到手机）。什么都没有就画一个字母。
+    /// 右下角的小圆点是 Anki 连接状态：绿=连上了，灰=没检查，红=连不上。
     /// </summary>
     public class AvatarBadge : Control
     {
@@ -43,27 +44,13 @@ namespace AnkiAssistant
             catch { return null; }
         }
 
-        /// <summary>把选中的图缩放成 256x256 存下来（顺手压掉体积）。</summary>
+        /// <summary>
+        /// 用户在设置里选的图：裁成 256x256 圆角方形存到本机缓存（顺手压掉体积）。
+        /// 圆角是切在图上的，存出来的 PNG 四角是透明的 —— 跟 Android 版存的那张一样。
+        /// </summary>
         public static void SaveImage(Image src)
         {
-            try
-            {
-                const int size = 256;
-                using (var bmp = new Bitmap(size, size))
-                {
-                    using (Graphics g = Graphics.FromImage(bmp))
-                    {
-                        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                        g.SmoothingMode = SmoothingMode.AntiAlias;
-                        // 居中裁成正方形再缩放，避免被拉变形
-                        int side = Math.Min(src.Width, src.Height);
-                        var crop = new Rectangle((src.Width - side) / 2, (src.Height - side) / 2, side, side);
-                        g.DrawImage(src, new Rectangle(0, 0, size, size), crop, GraphicsUnit.Pixel);
-                    }
-                    bmp.Save(AvatarPath, System.Drawing.Imaging.ImageFormat.Png);
-                }
-            }
-            catch { }
+            AvatarStore.SaveLocal(src, "custom");
         }
 
         public static void ClearImage()

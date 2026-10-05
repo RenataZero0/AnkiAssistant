@@ -53,6 +53,17 @@ namespace AnkiAssistant
         public const string DefaultPreset = PZhipu;
 
         /// <summary>
+        /// 当前预设。设置页存的是 ai.provider，早期版本存过 ai.preset —— 两个都认，
+        /// 否则用户在设置里换了服务商，制卡页仍然按默认预设走。
+        /// </summary>
+        public static string ActivePreset()
+        {
+            string p = Store.Get("ai.provider", "");
+            if (p.Length > 0) return p;
+            return Store.Get("ai.preset", DefaultPreset);
+        }
+
+        /// <summary>
         /// 静态构造：打开 TLS 1.2。.NET Framework 4.x 默认可能用 TLS 1.0，
         /// 不打开的话到 api.deepseek.com / open.bigmodel.cn 这些站点的 HTTPS 会直接握手失败。
         /// </summary>

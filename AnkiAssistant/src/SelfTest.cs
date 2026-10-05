@@ -58,9 +58,11 @@ namespace AnkiAssistant
 
             CheckVersion();
             CheckStore();
+            CheckSecret();
             CheckConfigs();
             CheckCardFormat();
             CheckUi();
+            CheckAvatar();
             CheckMarkdown();
             CheckChangelog();
             CheckNetwork();
@@ -152,6 +154,43 @@ namespace AnkiAssistant
 
             Check("Store.Root 存在", Directory.Exists(Store.Root), Store.Root);
             Check("Store.DataDir 存在", Directory.Exists(Store.DataDir), Store.DataDir);
+        }
+
+        // ------------------------------------------------------------ 2.5 内置 AI Key
+        static void CheckSecret()
+        {
+            Check("内置 Key 封装能往返（Seal/Unseal）", Secret.VerifyEnvelope(), "同一口令解不回原文");
+
+            bool hasZhipu = Secret.HasBuiltin(AiClient.PZhipu);
+            Check("智谱有内置 Key", hasZhipu, "内置密文解不出来（口令或密文对不上）");
+
+            string builtin = Secret.BuiltinKey(AiClient.PZhipu);
+            // 只断言长度/前缀形状，不把明文或密钥片段写进自检报告
+            Check("内置 Key 长度像样", builtin.Length == 49, "实际长度 " + builtin.Length);
+
+            Check("付费服务商不内置 Key", !Secret.HasBuiltin(AiClient.PDeepSeek), "DeepSeek 不该有内置 Key");
+
+            Check("手填 Key 优先于内置",
+                    Secret.Resolve(AiClient.PZhipu, "  my-own-key  ") == "my-own-key",
+                    "实际 " + Secret.Resolve(AiClient.PZhipu, "  my-own-key  "));
+            Check("留空时回落到内置",
+                    Secret.Resolve(AiClient.PZhipu, "") == builtin, "留空没回落到内置 Key");
+            Check("预设为空时按默认预设算",
+                    Secret.Resolve(null, "") == builtin, "预设为 null 没回落到默认预设");
+
+            // 篡改一个字符必须验不过（MAC 的意义）
+            string bad = builtin.Length > 0 ? Tamper(Secret.SealForBuild("abc")) : "";
+            Check("密文被改过就解不出来", bad.Length > 0 && !Secret.BlobDecrypts(bad), "改了还解得开");
+        }
+
+        /// <summary>把 base64 里一个字符换掉，模拟被篡改的密文。</summary>
+        static string Tamper(string b64)
+        {
+            if (string.IsNullOrEmpty(b64)) return "";
+            char[] a = b64.ToCharArray();
+            int i = a.Length / 2;
+            a[i] = a[i] == 'A' ? 'B' : 'A';
+            return new string(a);
         }
 
         // ------------------------------------------------------------ 3 格式 config
@@ -320,6 +359,55 @@ namespace AnkiAssistant
             }
             catch (Exception) { wrapOk = false; }
             Check("Ui.Wrap 长中文能折行", wrapOk, "返回 null 或没折行");
+        }
+
+        // ------------------------------------------------------------ 5.5 头像
+        // 只测不联网的部分（邮箱 → 文件名、裁圆角、编解码）；真实媒体库走
+        // AnkiConnect 的那一段在网络自检里一律 SKIP，日常自检必须离线也能过。
+        static void CheckAvatar()
+        {
+            Check("头像缓存路径是 data\\avatar.png",
+                  AvatarBadge.AvatarPath == Path.Combine(Store.DataDir, "avatar.png"),
+                  AvatarBadge.AvatarPath);
+
+            string a = AvatarStore.Md5("  Kuroneko@Example.COM ");
+            string b = AvatarStore.Md5("kuroneko@example.com");
+            Check("Md5 先小写去空格再算", a == b && a.Length == 32, a);
+            Check("空心邮箱也能算（不炸）", AvatarStore.Md5(null) == AvatarStore.Md5(""),
+                  AvatarStore.Md5(null));
+
+            string name = AvatarStore.MediaName("Kuroneko@Example.com");
+            Check("媒体文件名跟 Android 一致",
+                  name == "ankiassistant-avatar-" + b + ".png", name);
+            Check("邮箱空着就没有媒体文件名", AvatarStore.MediaName("") == "",
+                  "[" + AvatarStore.MediaName("") + "]");
+
+            bool sizeOk = false, cornerOk = false, centerOk = false, roundOk = false;
+            try
+            {
+                using (var src = new Bitmap(300, 200))
+                {
+                    using (Graphics g = Graphics.FromImage(src)) g.Clear(Color.Crimson);
+                    using (Bitmap r = AvatarStore.Rounded(src))
+                    {
+                        sizeOk = r.Width == AvatarStore.Size && r.Height == AvatarStore.Size;
+                        cornerOk = r.GetPixel(1, 1).A == 0;
+                        centerOk = r.GetPixel(AvatarStore.Size / 2, AvatarStore.Size / 2).A == 255;
+
+                        byte[] png = AvatarStore.EncodePng(r);
+                        using (Bitmap back = AvatarStore.Decode(png))
+                            roundOk = back != null && back.Width == AvatarStore.Size &&
+                                      back.GetPixel(1, 1).A == 0;
+                    }
+                }
+            }
+            catch (Exception e) { Check("头像裁图/编解码不抛异常", false, One(e)); }
+
+            Check("裁成 256x256", sizeOk);
+            Check("四角切圆（透明）", cornerOk);
+            Check("中心不透明", centerOk);
+            Check("PNG 编解码往返", roundOk);
+            Check("坏数据解不出来（返回 null）", AvatarStore.Decode(new byte[] { 1, 2, 3 }) == null);
         }
 
         // ------------------------------------------------------------ 6 Markdown 解析

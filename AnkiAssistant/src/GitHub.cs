@@ -22,7 +22,7 @@ namespace AnkiAssistant
         public const string Repo = "AnkiAssistant";
 
         /// <summary>版本号唯一真源：发版时只改这一处。</summary>
-        public const string VersionTag = "v1.16.1";
+        public const string VersionTag = "v1.16.2";
 
         public const string SetupAsset = "AnkiAssistant-Setup.exe";
         public const string ExeAsset = "AnkiAssistant.exe";

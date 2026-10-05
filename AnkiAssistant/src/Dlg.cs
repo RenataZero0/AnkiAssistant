@@ -249,7 +249,7 @@ namespace AnkiAssistant
             string okText = "确定", string cancelText = "取消", int widthDp = 460, string hint = null)
         {
             int y = Ui.Px(8);
-            var boxes = new List<TextBox>();
+            var boxes = new List<Input>();
             using (var d = new DlgForm(title, sub, widthDp))
             {
                 if (!string.IsNullOrEmpty(hint))
@@ -282,20 +282,15 @@ namespace AnkiAssistant
                     d.Body.Controls.Add(lab);
                     y += Ui.Px(24);
 
-                    var tb = new TextBox
-                    {
-                        Text = (values != null && i < values.Length) ? (values[i] ?? "") : "",
-                        Font = Ui.F(10f),
-                        BorderStyle = BorderStyle.FixedSingle,
-                        BackColor = Ui.PANEL,
-                        ForeColor = Ui.INK,
-                        Location = new Point(Ui.Px(d.Pad), y),
-                        Size = new Size(d.BodyWidth, Ui.Px(28))
-                    };
-                    if (secret != null && i < secret.Length && secret[i]) tb.UseSystemPasswordChar = true;
+                    var tb = new Input();
+                    tb.Text = (values != null && i < values.Length) ? (values[i] ?? "") : "";
+                    tb.Font = Ui.F(10f);
+                    tb.Location = new Point(Ui.Px(d.Pad), y);
+                    tb.Size = new Size(d.BodyWidth, Ui.Px(36));
+                    if (secret != null && i < secret.Length && secret[i]) tb.Secret = true;
                     d.Body.Controls.Add(tb);
                     boxes.Add(tb);
-                    y += Ui.Px(40);
+                    y += Ui.Px(48);
                 }
 
                 d.Button(okText, true, DialogResult.OK);

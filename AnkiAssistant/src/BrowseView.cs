@@ -34,8 +34,7 @@ namespace AnkiAssistant
         // ===== 本机卡片：查询行 =====
         Panel _cardsTop;
         ComboBox _deck;
-        TextBox _search;
-        bool _placeholderOn;           // 现在显示的是不是灰色占位文字（不是用户输入）
+        Input _search;
         Pill _queryBtn;
         bool _narrow;                  // 窄窗口：搜索框换到第二行
 
@@ -505,9 +504,23 @@ namespace AnkiAssistant
             _deck = new ComboBox();
             _deck.DropDownStyle = ComboBoxStyle.DropDownList;   // 只能选，不许手打牌组名
             _deck.Font = Ui.F(9.5f);
-            _deck.BackColor = Ui.CARD;
+            _deck.BackColor = Ui.PANEL;
             _deck.ForeColor = Ui.INK;
             _deck.FlatStyle = FlatStyle.Flat;
+            // 原生下拉框会画成系统灰底，这里自己画，跟圆角输入框一个路子
+            _deck.DrawMode = DrawMode.OwnerDrawFixed;
+            _deck.ItemHeight = Ui.Px(22);
+            _deck.DrawItem += delegate(object s, DrawItemEventArgs e)
+            {
+                bool sel = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+                Color bg = sel ? Ui.ACCENT_SOFT : Ui.PANEL;
+                using (var b = new SolidBrush(bg)) e.Graphics.FillRectangle(b, e.Bounds);
+                string txt = (e.Index >= 0 && e.Index < _deck.Items.Count)
+                    ? Convert.ToString(_deck.Items[e.Index]) : "";
+                Ui.TextVC(e.Graphics, txt, _deck.Font, sel ? Ui.ACCENT : Ui.INK,
+                    new Rectangle(e.Bounds.X + Ui.Px(7), e.Bounds.Y,
+                                  Math.Max(1, e.Bounds.Width - Ui.Px(12)), e.Bounds.Height));
+            };
             _deck.Items.Add("全部牌组");
             _deck.SelectedIndex = 0;
             _deck.SelectedIndexChanged += delegate
@@ -518,21 +531,9 @@ namespace AnkiAssistant
             };
             _cardsTop.Controls.Add(_deck);
 
-            _search = new TextBox();
+            _search = new Input();
             _search.Font = Ui.F(9.5f);
-            _search.BorderStyle = BorderStyle.FixedSingle;
-            _search.BackColor = Ui.PANEL;
-            _search.ForeColor = Ui.TEXT_DIM;
-            SetPlaceholder();
-            // 没原生 placeholder，只能自己拿灰字顶上去；焦点一动就让位给真正的输入
-            _search.Enter += delegate
-            {
-                if (_placeholderOn) { _search.Text = ""; _search.ForeColor = Ui.INK; _placeholderOn = false; }
-            };
-            _search.Leave += delegate
-            {
-                if (_search.Text.Trim().Length == 0) SetPlaceholder();
-            };
+            _search.Placeholder = "搜索卡片（可用 deck: tag: 等语法）";
             _search.KeyDown += delegate(object s, KeyEventArgs e)
             {
                 if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; DoQuery(); }
@@ -847,7 +848,7 @@ namespace AnkiAssistant
 
         string UserQuery()
         {
-            return _placeholderOn ? "" : _search.Text.Trim();
+            return _search.Text.Trim();
         }
 
         void DoQuery()
@@ -1320,13 +1321,6 @@ namespace AnkiAssistant
             return s.Replace("\\", "\\\\").Replace("*", "\\*").Replace("`", "\\`");
         }
 
-        // ===== placeholder =====
-
-        void SetPlaceholder()
-        {
-            _placeholderOn = true;
-            _search.Text = "搜索卡片（可用 deck: tag: 等语法）";
-            _search.ForeColor = Ui.TEXT_DIM;
-        }
+        // ===== 布局用的行高 =====
     }
 }
