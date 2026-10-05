@@ -2,7 +2,7 @@
 
 对着 `PRMOPT.md` 第二节「Anki 协助」做的安卓应用：**输入一个词 → AI 按固定格式填好卡背 → 存进 Anki → 自动同步到 AnkiWeb 云端**，并且可以在应用里浏览自己已有的卡片。
 
-**成品：`AnkiAssistant.apk`（约 700 KB，minSdk 21 / targetSdk 34，已签名，可直接安装）**
+**成品：`AnkiAssistant.apk`（约 25 MB，minSdk 21 / targetSdk 34，已签名，可直接安装；自带 Anki 官方引擎与一份自己的收藏库，不需要装 Anki 电脑端、也不需要 AnkiConnect 插件）**
 
 - 手机：底部横栏切换「制卡 / 浏览 / 设置」
 - 平板（最短边 ≥ 600dp）：左侧常驻选择栏（100dp）。侧栏做成分层结构，不再是一整条死白：
@@ -119,7 +119,7 @@ Anki 助手（内置引擎） → 本机收藏库（filesDir/collection.anki2）
 | 硅基流动 SiliconFlow | `api.siliconflow.cn/v1/chat/completions` | 有免费模型 |
 | 自定义 | 任意 OpenAI 兼容 `/chat/completions` | 本地 mock、其他厂商都走这里 |
 
-**APK 里不内置任何 API Key** —— 打包进 APK 的密钥任何人都能提取盗用。上面几个都是一注册就有免费额度/免费模型。
+**APK 内置了一把智谱 GLM-4.5-Flash 免费档的 Key**（只有 AES-GCM 密文，见下面「内置 Key 与"新设备零输入"」一节），装好就能用；**你自己填的 Key 优先于内置的那把**。
 **每个服务商各存一把 Key**：切换服务商时会自动带出该服务商上次填的 Key，不用反复粘贴（旧版本的单一 Key 会自动迁移到当前服务商名下）。
 
 ### 思考模式（智谱 glm-4.5/4.7）
@@ -190,7 +190,7 @@ AnkiAssistant\
     ├─ make_icons.py          生成启动图标
     ├─ check_html_js.js       校验 editor.html 内联 JS 语法
     └─ lib\
-        ├─ json.jar           org.json（电脑端自检用，安卓端由 android.jar 提供）
+        ├─ json.jar           org.json（构建期工具用；安卓端由 android.jar 提供）
         └─ py\zstandard       读新版 Anki 收藏库（schema 18，字段是 zstd 压缩）用，可选
 ```
 
@@ -199,7 +199,7 @@ AnkiAssistant\
 ## 六、重新编译 / 自检
 
 ```powershell
-cd AnkiAssistant
+cd AnkiAssistantAndroid
 powershell -ExecutionPolicy Bypass -File selftest.ps1     # 先跑纯逻辑自检
 powershell -ExecutionPolicy Bypass -File build.ps1        # 再打包
 ```

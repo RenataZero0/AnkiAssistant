@@ -1,9 +1,8 @@
 # ============================================================
-# AnkiAssistant - Anki card-making assistant
-#   Windows desktop / Android / Windows installer
+# AnkiAssistant - Anki card-making assistant (Android)
 #
-# Only the sources of these three apps live here. The single
-# source of truth for CHANGELOG.md is the repo root.
+# The app lives in AnkiAssistantAndroid/. The single source of
+# truth for CHANGELOG.md is the repo root.
 #
 # NOTE: keep this file ASCII-only (aapt2 / PowerShell 5.1 both
 # choke on non-ASCII text read without an explicit encoding).
@@ -14,45 +13,13 @@ build/
 _selftest/
 *.idsig
 
-# ---- Windows artifacts ----
-# the loose exe is only the installer's input, not a release asset
-AnkiAssistant/AnkiAssistant.exe
-# the built-in Anki engine dll (~32 MB) sits next to the exe at runtime and is
-# also kept in tools/lib for local builds; build it with the recipe in
-# AnkiAssistant/tools/BUILD_ENGINE_WINDOWS.md
-AnkiAssistant/AnkiAssistant/rslib_aa.dll
-rslib_aa.dll
-aa_ffi.dll
-AnkiAssistantSetup/AnkiAssistant-Setup.exe
-AnkiAssistantSetup/build/
-*.pdb
-
-# ---- runtime data (holds API keys - never commit) ----
-settings.ini
-
 # ---- probes and scratch output ----
 _probe/
 _*.png
-AnkiAssistantSetup/preview/
 selftest.txt
-
-# ---- generated (source of truth is the repo-root CHANGELOG.md) ----
-AnkiAssistant/CHANGELOG.md
-_release_notes.md
 
 # ---- OS junk ----
 ~$*
 Thumbs.db
 desktop.ini
 .DS_Store
-
-tools/lib/
-# built-in Anki engine native libs (37 MB x2), build them yourself
-# with the recipe in tools\BUILD_ENGINE.md
-tools/lib/jni/
-
-# scratch screenshots taken while iterating on the modernized UI
-AnkiAssistant/preview/probe-*.png
-AnkiAssistant/preview/v2-*.png
-AnkiAssistant/preview/v3-*.png
-AnkiAssistant/preview/conn-dialog-v1163.png
